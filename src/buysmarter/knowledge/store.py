@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -707,14 +708,55 @@ async def resolve_books(
     return resolved.brand_book, resolved.model_book
 
 
-def merge_brand_books(base: BrandBook, overlay: BrandBook) -> BrandBook:
-    """Merge two BrandBooks; ``overlay`` (the user's file) wins on conflicts."""
+def merge_brand_books(base: BrandBook, overlay: BrandBook, rated: Iterable[str] = ()) -> BrandBook:
+    """Merge two BrandBooks: ``overlay`` (notes) only adds what ``base`` lacks.
+
+    A brand ``base`` has keeps its tier, floor, sellers and store: notes seldom rate a
+    brand, so the extractor's guess must not beat a web-grounded one ("Haier" B → A).
+    Only a brand in ``rated`` (the notes judge it themselves) takes the overlay's tier.
+    Brands match whatever the case ("DAUSCHER" is "Dauscher") under the first spelling.
+    """
+    spelling: dict[str, str] = {}
+    for brand in [*base.tiers, *overlay.tiers]:
+        spelling.setdefault(brand.casefold(), brand)
+
+    def canon(brand: str) -> str:
+        return spelling.get(brand.casefold(), brand)
+
+    def merged[V](first: dict[str, V], second: dict[str, V]) -> dict[str, V]:
+        out: dict[str, V] = {}
+        for brand, value in [*first.items(), *second.items()]:
+            out.setdefault(canon(brand), value)
+        return out
+
+    aliases: dict[str, str] = {}
+    seen: set[str] = set()
+    for alias, brand in [*base.aliases.items(), *overlay.aliases.items()]:
+        if alias.casefold() not in seen:
+            seen.add(alias.casefold())
+            aliases[alias] = canon(brand)
+    rated_keys = {brand.casefold() for brand in rated}
+    tiers = merged(base.tiers, overlay.tiers)
+    for brand, tier in overlay.tiers.items():
+        if brand.casefold() in rated_keys:
+            tiers[canon(brand)] = tier
     return BrandBook(
-        tiers={**base.tiers, **overlay.tiers},
-        aliases={**base.aliases, **overlay.aliases},
-        price_floors={**base.price_floors, **overlay.price_floors},
-        official_sellers={**base.official_sellers, **overlay.official_sellers},
-        official_stores={**base.official_stores, **overlay.official_stores},
+        tiers=tiers,
+        aliases=aliases,
+        price_floors=merged(base.price_floors, overlay.price_floors),
+        official_sellers=merged(base.official_sellers, overlay.official_sellers),
+        official_stores=merged(base.official_stores, overlay.official_stores),
+    )
+
+
+def with_book_spelling(model: ModelBook, brand: BrandBook) -> ModelBook:
+    """Model entries name their brand as the brand book spells it ("DAUSCHER" → "Dauscher")."""
+    spelling = {b.casefold(): b for b in brand.tiers}
+    return ModelBook(
+        entries=[
+            e.model_copy(update={"brand": spelling.get(e.brand.casefold(), e.brand)})
+            for e in model.entries
+        ]
     )
 
 

@@ -39,6 +39,7 @@ from buysmarter.knowledge.store import (
     merge_brand_books,
     merge_model_books,
     save_knowledge,
+    with_book_spelling,
 )
 from buysmarter.llm.adapter import generate
 from buysmarter.services.official_stores import verify_store_floors
@@ -64,6 +65,9 @@ class CategoryKnowledgeResult(BaseModel):
     category_type: str = SPEC_DRIVEN
     ingredient_book: IngredientBook = Field(default_factory=IngredientBook)
     benchmark_provider: ProviderName | None = None
+    # From notes only: brands whose trust the notes judge themselves; their tier
+    # beats the stored one, every other notes tier only fills a missing brand.
+    rated_brands: list[str] = Field(default_factory=list)
 
     @field_validator("benchmark_provider", mode="before")
     @classmethod
@@ -198,7 +202,15 @@ def extract_prompt(category: str, notes: str) -> str:
         f"Extract brand-trust and product-identity knowledge for the category "
         f"{category!r} from the user's research notes below. Use ONLY facts "
         "present in the notes; do not invent brands or models that are not "
-        "mentioned.\n\n" + _SCHEMA_GUIDE + f"\n\n--- USER NOTES ---\n{notes}"
+        "mentioned. A shop or marketplace where a product is sold (Kaspi, Ozon, "
+        "Technodom, Sulpak, Mechta, a dealer's site) is NOT an official seller or store: "
+        "fill `official_sellers` and `official_stores` only where the notes say outright "
+        "that the seller or site is the brand's own or its official distributor; else "
+        "leave them empty. Spell each brand one way. `rated_brands`: the brands whose "
+        'trust or quality the notes judge themselves ("X is solid", "avoid Y"); a '
+        "brand only listed, priced or sold is not rated.\n\n"
+        + _SCHEMA_GUIDE
+        + f"\n\n--- USER NOTES ---\n{notes}"
     )
 
 
@@ -210,6 +222,7 @@ class CategoryKnowledge(NamedTuple):
     category_type: str
     ingredient: IngredientBook
     benchmark_provider: str | None = None
+    rated_brands: tuple[str, ...] = ()
 
 
 def _knowledge(result: Any) -> CategoryKnowledge:
@@ -219,6 +232,7 @@ def _knowledge(result: Any) -> CategoryKnowledge:
         _normalize_type(result.category_type, result.ingredient_book),
         result.ingredient_book,
         result.benchmark_provider,
+        tuple(result.rated_brands),
     )
 
 
@@ -334,6 +348,7 @@ async def extract_category_knowledge(category: str, notes: str) -> CategoryKnowl
             model=merge_model_books(knowledge.model, part.model),
             ingredient=merge_ingredient_books(knowledge.ingredient, part.ingredient),
             benchmark_provider=knowledge.benchmark_provider or part.benchmark_provider,
+            rated_brands=knowledge.rated_brands + part.rated_brands,
         )
         if part.category_type == COMPOSITION_DRIVEN:
             knowledge = knowledge._replace(category_type=COMPOSITION_DRIVEN)
@@ -348,17 +363,24 @@ async def learn_from_notes(
     CLI ``learn`` and the app's «Из заметок…»; returns the merged books and the shown type.
     """
     notes = file.read_text(encoding="utf-8")
-    new_brand, new_model, new_type, new_ingredient, provider = await extract_category_knowledge(
-        category, notes
-    )
+    (
+        new_brand,
+        new_model,
+        new_type,
+        new_ingredient,
+        provider,
+        rated,
+    ) = await extract_category_knowledge(category, notes)
     # The category's own record only: a parent's or a related category's knowledge
     # must not be copied into this one (phase 1, decision 6).
     stored = await load_profile(category) or CategoryProfile(slug=category)
     stored_brand, stored_model = stored.brand_book, stored.model_book
     stored_ingredient = stored.ingredient_book
-    # User's file wins on conflicts → it is the overlay on top of the stored base.
-    merged_brand = merge_brand_books(stored_brand or BrandBook(), new_brand)
-    merged_model = merge_model_books(stored_model or ModelBook(), new_model)
+    # The notes are the overlay: they add brands; a stored brand keeps its tier.
+    merged_brand = merge_brand_books(stored_brand or BrandBook(), new_brand, rated)
+    merged_model = with_book_spelling(
+        merge_model_books(stored_model or ModelBook(), new_model), merged_brand
+    )
     merged_ingredient = merge_ingredient_books(
         stored_ingredient or IngredientBook(), new_ingredient
     )

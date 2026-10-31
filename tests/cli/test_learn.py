@@ -128,12 +128,13 @@ def test_learn_file_merges_user_notes_over_stored(monkeypatch, tmp_path) -> None
     asyncio.run(save_knowledge("робот-пылесос", base_brand, base_model, "opus"))
 
     async def _fake_extract(category: str, notes: str):
-        # User's notes promote Xiaomi to B and add Roborock.
+        # User's notes rate Xiaomi themselves (promote it to B) and add Roborock.
         return CategoryKnowledge(
             BrandBook(tiers={"Xiaomi": "B", "Roborock": "A"}, aliases={}),
             ModelBook(entries=[]),
             "spec_driven",
             IngredientBook(),
+            rated_brands=("xiaomi",),
         )
 
     monkeypatch.setattr(generate_module, "extract_category_knowledge", _fake_extract)

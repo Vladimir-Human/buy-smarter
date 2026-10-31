@@ -321,7 +321,7 @@ def learn_category(
 ) -> None:
     """Generate a BrandBook + ModelBook for a category via the LLM and save it."""
     try:
-        brand, model, category_type, ingredient, _ = asyncio.run(
+        brand, model, category_type, ingredient, *_ = asyncio.run(
             learn_category_knowledge(category, web_search=web)
         )
     except Exception as exc:  # noqa: BLE001 - surface a clean CLI error

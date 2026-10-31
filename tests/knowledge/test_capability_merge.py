@@ -16,7 +16,7 @@ from buysmarter.knowledge import store as store_mod
 from buysmarter.knowledge.brands import BrandBook
 from buysmarter.knowledge.generate import CategoryKnowledge
 from buysmarter.knowledge.ingredients import ActiveSubstance, IngredientBook
-from buysmarter.knowledge.models_book import ModelBook
+from buysmarter.knowledge.models_book import ModelBook, ModelEntry
 from buysmarter.knowledge.profile import COMPOSITION, CapabilitySetting, merge_capabilities
 from buysmarter.knowledge.store import (
     load_knowledge,
@@ -143,6 +143,27 @@ async def test_learning_from_notes_keeps_the_users_choice(monkeypatch, tmp_path:
     await generate_module.learn_from_notes(notes, "крем-от-акне")
 
     assert await _user_choice("крем-от-акне") is False
+
+
+async def test_notes_add_brands_but_never_retier_or_respell_a_stored_one(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def _extract(category: str, notes: str):
+        brand = BrandBook(tiers={"HAIER": "A", "DAUSCHER": "C", "Dauscher": "B"})
+        model = ModelBook(entries=[ModelEntry(canonical="Dauscher DD-2255", brand="dauscher")])
+        return CategoryKnowledge(brand, model, "spec_driven", IngredientBook())
+
+    monkeypatch.setattr(generate_module, "extract_category_knowledge", _extract)
+    await store_mod.save_knowledge(
+        "посудомойка", BrandBook(tiers={"Haier": "B"}), ModelBook(), "opus"
+    )
+    notes = tmp_path / "notes.md"
+    notes.write_text("Haier, Dauscher", encoding="utf-8")
+
+    brand, model, _, _ = await generate_module.learn_from_notes(notes, "посудомойка")
+
+    assert brand.tiers == {"Haier": "B", "DAUSCHER": "C"}
+    assert [e.brand for e in model.entries] == ["DAUSCHER"]
 
 
 async def test_notes_naming_a_provider_switch_benchmark_on_and_silent_notes_leave_it(

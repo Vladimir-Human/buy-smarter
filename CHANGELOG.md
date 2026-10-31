@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ### Fixed
 
+- `buysmarter learn` (and «Из заметок…») no longer re-tiers a learned brand from notes that never rated it (Haier B → A), no longer keeps one brand twice in two cases ("DAUSCHER" and "Dauscher"), and no longer takes the shops that sell a product (Kaspi, Technodom) for the brand's official sellers: notes only add brands the category lacks, and re-tier only a brand they judge themselves ("Xiaomi is actually solid").
 - Ozon's combined size spec ("Размер (ДхШхВ), см": "50х55х43,8") counts for a size limit.
 
 - "посудомоечная машина высотой до 50 см" rejected every card whose specs were read, the 44 cm cubes too, and kept only the unchecked ones: a size limit among the required features ("высотой до 50 см", "глубина не более 440 мм") is now compared as a number with the spec of that side, not looked up as text.

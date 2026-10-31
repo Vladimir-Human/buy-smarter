@@ -217,13 +217,23 @@ def test_jev_question_lists_stored_slugs_and_no_match() -> None:
     assert list(question["criteria"]) == ["косметика", "смартфон", store_mod._NO_MATCH]
 
 
-def test_merge_brand_books_overlay_wins_on_conflict() -> None:
-    base = BrandBook(tiers={"Xiaomi": "C", "Dreame": "B"}, aliases={"Сяоми": "Xiaomi"})
-    overlay = BrandBook(tiers={"Xiaomi": "B", "Roborock": "A"}, aliases={"Робо": "Roborock"})
+def test_merge_brand_books_keeps_the_base_brands_and_adds_new_ones() -> None:
+    base = BrandBook(
+        tiers={"Xiaomi": "C", "Dreame": "B"},
+        aliases={"Сяоми": "Xiaomi"},
+        official_sellers={"Xiaomi": ["Xiaomi Official"]},
+    )
+    overlay = BrandBook(
+        tiers={"XIAOMI": "A", "Roborock": "A", "ROBOROCK": "B"},
+        aliases={"сяоми": "XIAOMI", "Робо": "ROBOROCK"},
+        official_sellers={"xiaomi": ["Technodom"], "Roborock": ["Roborock KZ"]},
+    )
 
     merged = merge_brand_books(base, overlay)
-    assert merged.tiers == {"Xiaomi": "B", "Dreame": "B", "Roborock": "A"}
+    assert merged.tiers == {"Xiaomi": "C", "Dreame": "B", "Roborock": "A"}
     assert merged.aliases == {"Сяоми": "Xiaomi", "Робо": "Roborock"}
+    assert merged.official_sellers == {"Xiaomi": ["Xiaomi Official"], "Roborock": ["Roborock KZ"]}
+    assert merge_brand_books(base, overlay, rated=["xiaomi"]).tiers["Xiaomi"] == "A"
 
 
 def test_merge_model_books_overlay_wins_by_canonical() -> None:

@@ -760,9 +760,29 @@ def with_book_spelling(model: ModelBook, brand: BrandBook) -> ModelBook:
     )
 
 
+def _model_key(entry: ModelEntry) -> str:
+    """One model whatever the case and brand prefix: "Comfee CDWC421BE-i" is "CDWC421BE-i"."""
+    name = entry.canonical.casefold()
+    brand = entry.brand.casefold()
+    if brand and name.startswith(f"{brand} "):
+        name = name[len(brand) + 1 :]
+    return re.sub(r"[\W_]", "", name)
+
+
 def merge_model_books(base: ModelBook, overlay: ModelBook) -> ModelBook:
-    """Merge two ModelBooks by canonical name; ``overlay`` entries win on conflicts."""
-    by_canonical: dict[str, ModelEntry] = {e.canonical: e for e in base.entries}
-    for entry in overlay.entries:
-        by_canonical[entry.canonical] = entry
-    return ModelBook(entries=list(by_canonical.values()))
+    """Merge two ModelBooks by model (``_model_key``): ``overlay`` wins, aliases and codes join."""
+    by_key: dict[str, ModelEntry] = {}
+    for entry in [*base.entries, *overlay.entries]:
+        key = _model_key(entry)
+        old = by_key.get(key)
+        if old is not None:
+            entry = entry.model_copy(
+                update={
+                    # the fuller name ("Comfee CDWC421BE-i" over "CDWC421BE-i") stays canonical
+                    "canonical": max(entry.canonical, old.canonical, key=len),
+                    "aliases": list(dict.fromkeys([*old.aliases, *entry.aliases])),
+                    "codes": list(dict.fromkeys([*old.codes, *entry.codes])),
+                }
+            )
+        by_key[key] = entry
+    return ModelBook(entries=list(by_key.values()))

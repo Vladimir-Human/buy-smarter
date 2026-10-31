@@ -253,6 +253,28 @@ def test_merge_model_books_overlay_wins_by_canonical() -> None:
     assert by_canon["Roborock S8"].codes == ["S8", "S8PRO"]
 
 
+def test_merge_model_books_matches_a_model_whatever_the_case_and_brand_prefix() -> None:
+    base = ModelBook(
+        entries=[
+            ModelEntry(canonical="Comfee CDWC421BE-i", brand="Comfee", aliases=["421"]),
+            ModelEntry(canonical="Midea MCFD42900 MINI", brand="Midea"),
+        ]
+    )
+    overlay = ModelBook(
+        entries=[
+            ModelEntry(canonical="CDWC421BE-i", brand="comfee", aliases=["кубик"]),
+            ModelEntry(canonical="Midea MCFD42900 Mini", brand="midea"),
+        ]
+    )
+
+    merged = merge_model_books(base, overlay)
+    assert [e.canonical for e in merged.entries] == [
+        "Comfee CDWC421BE-i",
+        "Midea MCFD42900 Mini",
+    ]
+    assert merged.entries[0].aliases == ["421", "кубик"]
+
+
 # --- one-time import of the pre-store JSON files ------------------------------
 
 

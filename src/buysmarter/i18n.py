@@ -210,10 +210,11 @@ def checked_brands(candidates: Iterable[Candidate]) -> set[str]:
 def used_con(listing: "UsedListing", brands: set[str]) -> str:
     """The listing's caveat, plus the proof to ask for when it names a tier-A/B brand."""
     title = listing.title.casefold()
+    con = f"{listing.fit}; {listing.con}" if listing.fit else listing.con
     # ponytail: brand names only, not BrandBook aliases ("адидас"); pass the book if it misses.
     if any(re.search(rf"\b{re.escape(b)}\b", title) for b in brands):
-        return f"{listing.con}; {TAG_CHECK_HINT}"
-    return listing.con
+        return f"{con}; {TAG_CHECK_HINT}"
+    return con
 
 
 # The fields ``ranking.engine._confidence`` counts, in the user's words.

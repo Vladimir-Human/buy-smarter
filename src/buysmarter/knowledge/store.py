@@ -782,6 +782,7 @@ def merge_model_books(base: ModelBook, overlay: ModelBook) -> ModelBook:
                     "canonical": max(entry.canonical, old.canonical, key=len),
                     "aliases": list(dict.fromkeys([*old.aliases, *entry.aliases])),
                     "codes": list(dict.fromkeys([*old.codes, *entry.codes])),
+                    "specs": {**old.specs, **entry.specs},
                 }
             )
         by_key[key] = entry

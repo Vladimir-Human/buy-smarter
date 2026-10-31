@@ -495,15 +495,19 @@ async def _ozon_pool(
 
 
 async def _budget_search(
-    source: ProductSource, query: str, budget: int | None, city: str | None = None
+    source: ProductSource,
+    query: str,
+    budget: int | None,
+    city: str | None = None,
+    region: bool | None = None,
 ) -> list[RawProduct]:
-    """One search, passing ``budget`` and ``city`` only to adapters whose search accepts them.
+    """One search, passing ``budget``, ``city`` and ``region`` only to adapters that take them.
 
     The real ``OlxSource``/``OzonSource.search`` take a ``budget`` (a server-side price cap);
     injected test doubles may not, so we pass it only when the signature has it.
     """
     params = inspect.signature(source.search).parameters
-    given = {"budget": budget, "city": city}
+    given = {"budget": budget, "city": city, "region": region}
     kwargs = {k: v for k, v in given.items() if v is not None and k in params}
     return await source.search(query, **kwargs)  # type: ignore[arg-type]
 
@@ -549,21 +553,29 @@ async def _olx_search(
     budget: int | None,
     book: BrandBook | None = None,
     city: str | None = None,
+    product_type: str | None = None,
 ) -> list[RawProduct]:
-    """OLX search broadened by the latin-stripped variant + head noun, deduped.
+    """OLX search broadened by the product type, the latin-stripped variant and the head
+    noun, deduped, over the city's whole region (villages around it: Коксай for Алматы).
 
-    The full-category hits come first (most relevant); the latin-jargon-stripped
-    variant ("TWS наушники" -> "наушники") and head-noun hits widen the pool so
-    branded used deals hidden behind a narrow/jargon-heavy query surface.
+    The full-category hits come first (most relevant); the product type ("посудомоечная
+    машина" for "настольная посудомоечная машина": sellers seldom write the form), the
+    latin-jargon-stripped variant ("TWS наушники" -> "наушники") and head-noun hits widen
+    the pool so used deals hidden behind a narrow/jargon-heavy query surface.
     """
-    products = await _budget_search(source, category, budget, city)
+    queries = [category]
+    if product_type and product_type.lower() != category.lower():
+        queries.append(product_type)
     stripped = strip_latin_tokens(category, book)
     if stripped is not None:
-        more = await _budget_search(source, stripped, budget, city)
-        products = _dedupe_products(products + more)
+        queries.append(stripped)
     noun = _head_noun(category, book)
     if noun is not None:
-        products = _dedupe_products(products + await _budget_search(source, noun, budget, city))
+        queries.append(noun)
+    products: list[RawProduct] = []
+    for query in dict.fromkeys(queries):
+        found = await _budget_search(source, query, budget, city, region=True)
+        products = _dedupe_products(products + found)
     return products
 
 
@@ -581,17 +593,11 @@ async def _collect_olx(
     book: BrandBook | None,
     budget: int | None,
     city_id: str | None = None,
+    product_type: str | None = None,
 ) -> list[Candidate]:
     """OLX: scan the top listings, keep only used, on-category ones as match candidates."""
-    products = await _olx_search(source, category, budget, book, city_id)
-    search_count = (
-        1
-        + (1 if strip_latin_tokens(category, book) is not None else 0)
-        + (1 if _head_noun(category, book) is not None else 0)
-    )
-    logger.info(
-        "olx: %d searches issued (main+stripped+head-noun), %d cards", search_count, len(products)
-    )
+    products = await _olx_search(source, category, budget, book, city_id, product_type)
+    logger.info("olx: main+type+stripped+head-noun searches, %d cards", len(products))
     used: list[Candidate] = []
     for product in products[:_OLX_MAX_CARDS]:
         # A degenerate recall query (a brand-only head-noun search, or a
@@ -761,6 +767,7 @@ async def gather_sources(
     budget: int | None,
     extra_searches: list[tuple[str, list[str]]] | None = None,
     limits: SizeLimits = (),
+    product_type: str | None = None,
 ) -> dict[str, object]:
     """Run every active source's collector concurrently, isolating failures.
 
@@ -777,7 +784,9 @@ async def gather_sources(
         specs_for = _OZON_SPECS_FOR_SIZED if limits else _OZON_SPECS_FOR
         coros["ozon"] = _collect_ozon(active["ozon"], category, book, budget, specs_for)
     if "olx" in active:
-        coros["olx"] = _collect_olx(active["olx"], category, book, budget, olx_city_id(city))
+        coros["olx"] = _collect_olx(
+            active["olx"], category, book, budget, olx_city_id(city), product_type
+        )
     names = list(coros)
     results = await asyncio.gather(*(_safe(n, coros[n]) for n in names))
     return dict(zip(names, results, strict=True))

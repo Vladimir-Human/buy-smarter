@@ -1591,6 +1591,32 @@ async def test_olx_and_kaspi_search_the_query_city() -> None:
     assert seen == {"kaspi": "710000000", "olx": "87"}
 
 
+async def test_olx_searches_the_region_and_the_product_type_too() -> None:
+    from buysmarter.services.collect import gather_sources
+
+    calls: list[tuple[str, bool]] = []
+
+    class _RegionOlx(FakeSource):
+        async def search(self, query, city=None, budget=None, region=False):
+            calls.append((query, region))
+            return []
+
+    active = {"olx": _RegionOlx("olx", [])}
+    await gather_sources(
+        active,
+        "настольная посудомоечная машина",
+        "Алматы",
+        None,
+        None,
+        product_type="посудомоечная машина",
+    )
+
+    assert calls[:2] == [
+        ("настольная посудомоечная машина", True),
+        ("посудомоечная машина", True),
+    ]
+
+
 # --- review stats + defect-complaint penalty in the review pass -------------
 
 

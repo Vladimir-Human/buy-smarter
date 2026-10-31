@@ -45,7 +45,7 @@ def to_cm(number: str, unit: str) -> float:
     return float(number.replace(",", ".")) * _TO_CM[unit.lower()]
 
 
-def _dim_limit_met(feature: str, specs: dict[str, str]) -> bool | None:
+def size_limit_met(feature: str, specs: dict[str, str]) -> bool | None:
     """Whether the side's spec is within the limit; None when the feature is no size limit
     or no spec gives that side (packaging sizes never count)."""
     limit = size_limit(feature)
@@ -95,7 +95,7 @@ def _feature_present(feature: str, candidate: Candidate) -> bool:
     matching, not semantic. Upgrade path is LLM/embedding-based feature
     matching once this becomes the bottleneck.
     """
-    dim_met = _dim_limit_met(feature, candidate.specs)
+    dim_met = size_limit_met(feature, candidate.specs)
     if dim_met is not None:
         return dim_met
     needle = _normalize_for_match(feature)

@@ -97,6 +97,7 @@ from buysmarter.services.understanding import (
     restricted_note,
     settle_request,
 )
+from buysmarter.services.used_specs import Fit, apply_fits, check_used_sizes
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +377,7 @@ async def _collect(run: _Run, active: dict[str, ProductSource]) -> _Pool:
             constraints.budget_max,
             capabilities.searches(),
             size_limits(constraints.required_features),
+            constraints.product_type,
         )
     new_candidates, persist_rows = merge_new_goods(collected)
     with stage("official stores"):
@@ -427,14 +429,23 @@ async def _rank(
 
 
 async def _used_listings(
-    run: _Run, pool: _Pool, recommendation: Recommendation | None
+    run: _Run, pool: _Pool, recommendation: Recommendation | None, fits: dict[str, Fit]
 ) -> list[UsedListing]:
-    """The OLX section: against the ranking, or, with no new pick, against the rejected pool."""
+    """The OLX section: against the ranking, or, with no new pick, against the rejected pool.
+
+    ``fits``: the ads against the size limits; an ad that fails never shows (``used_specs``).
+    """
     profile = run.profile
     knowledge = (profile.brand_book, profile.model_book, run.use_llm, profile.model_book_owner)
+    used = [
+        u for u in pool.used if (fit := fits.get(u.url or u.title)) is None or fit.ok is not False
+    ]
     if recommendation is None:
-        return await used_market_without_pick(pool.deduped, pool.used, run.constraints, *knowledge)
-    return await used_market(recommendation, pool.used, run.constraints, *knowledge)
+        listings = await used_market_without_pick(pool.deduped, used, run.constraints, *knowledge)
+    else:
+        listings = await used_market(recommendation, used, run.constraints, *knowledge)
+    budget = run.constraints.budget_max
+    return apply_fits(listings, used, fits, budget, profile.model_book)
 
 
 @_measured
@@ -499,6 +510,14 @@ async def recommend(
     run = _Run(query, constraints, profile, capabilities, use_llm)
     try:
         pool = await _collect(run, active)
+        with stage("olx sizes"):  # before the sources close: a model may need a Kaspi search
+            fits = await check_used_sizes(
+                pool.used,
+                pool.deduped,
+                constraints.required_features,
+                profile.model_book,
+                active.get("kaspi"),
+            )
         if persist and pool.persist_rows:  # prices seen count even when nothing is picked
             await save_snapshots(pool.persist_rows, constraints.search_phrase)
         recommendation, review_summary, review_summary_note = await _rank(
@@ -507,14 +526,14 @@ async def recommend(
         recommendation, hidden = _hide_suspects(run, recommendation)
     except NoCandidatesPassed as exc:
         # rank() is the only raiser, so the pool and the OLX ads are already collected
-        used = await _used_listings(run, pool, None)
+        used = await _used_listings(run, pool, None, fits)
         raise NoNewPick(exc.rejected_reasons, used, olx_searched="olx" in active) from exc
     finally:
         for src in active.values():
             await aclose(src)
 
     apply_cross_notes(recommendation, pool.notes)
-    used_listings = await _used_listings(run, pool, recommendation)
+    used_listings = await _used_listings(run, pool, recommendation, fits)
     logger.info("stage %s took %.2fs", "total", time.perf_counter() - total_start)
     return RecommendResult(
         recommendation=recommendation,

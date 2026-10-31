@@ -4,7 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+### Added
+
+- OLX ads are checked against a size limit ("высотой до 50 см"): the sizes the ad states, then its model's sizes (the model book, a new card of that model, a Kaspi search). An ad that fails is hidden, one that passes says why in «Заметки» and shows even when no new product matched it; an unknown one is marked "не проверено". The model book keeps a model's sizes (`specs`), learned from notes or the web. Learning from notes no longer writes official stores: the extractor took product pages and Russian sites for them.
+- OLX is searched over the city's whole region (Алматы with Алматинская область: Коксай, Есик) and by the product type too ("посудомоечная машина" for "настольная посудомоечная машина").
+
 ### Changed
+
+- The OLX table's last column is «Заметки» (was «Минус»): it carries the size check next to the caveats.
 
 - A request with a size limit ("высотой до 50 см") collects a wider pool: Kaspi is searched again with its own size facet ("Высота: менее 75 см"), both pages it serves (24 cards instead of 12), and every Ozon card gets its specs, so no card wins only because it was never checked. "посудомойка высотой до 50 см" now passes 23 compact machines instead of 2.
 - The report says how many goods «Только известные бренды» dropped and that their brands are missing from the category's brand book.

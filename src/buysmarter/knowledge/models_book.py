@@ -35,6 +35,9 @@ class ModelEntry(BaseModel):
     # Official price of a genuine item of this model in Kazakhstan (KZT), if known:
     # a far cheaper "Air Jordan 4" is a replica even when the brand's floor is low.
     reference_price: int | None = None
+    # The model's own specs as a card states them ("Высота": "50 см"), from notes or the
+    # web: an OLX ad of this model is checked against a size limit with them.
+    specs: dict[str, str] = Field(default_factory=dict)
 
     def matches_code(self, normalized_title: str) -> bool:
         """True if any of this entry's codes appears as a digit-bounded token.

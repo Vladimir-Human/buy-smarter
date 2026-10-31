@@ -223,7 +223,7 @@ All sources run in parallel; one source failing returns nothing for it and the r
 - only cards whose title matches the category; specs for the top 4 of 8, for all 8 with a size limit (a card without specs skips the check and would pass unchecked).
 
 **OLX**
-- search by category, by the jargon-free variant and by the head noun, in the query's city;
+- search by category, by the product type when it differs ("посудомоечная машина" for "настольная посудомоечная машина": sellers seldom write the form), by the jargon-free variant and by the head noun, over the city's whole region (OLX `region_id`: Алматы with Алматинская область, so Коксай and Есик too; the city column says where);
 - keep only cards that match the category, read as used, and are not "for parts".
 
 Module: `services/collect`, `services/size_search`, `services/matching`, `ranking/used_defects`
@@ -393,7 +393,8 @@ Decides: the final warnings and the OLX section. A used query (`condition` "used
 - OLX ads are matched to every ranked candidate (same model or brand + title); an ad shows only if its price is under 0.7 of the matched new product's.
 - Then notable ads of trusted brands, only when a budget is set. No new pick, no brand book and nothing else shown: the three cheapest ads within budget (`cheapest_used_listings`).
 - Then no-name ads cheaper than a no-name or tier-C best pick.
-Module: `services/matching`, `llm/canonicalize`, `knowledge/store`
+- A size limit among the required features ("высотой до 50 см") is checked for every ad before the section is built (while the sources are still open), cheapest rung first: the sizes the ad states in words ("высота 44 см"); then its model (the model book resolves the title and description): the model's `specs` in the book (learned from notes or the web), a new card of that model in the pool, a Kaspi search for the model (at most 5 per run). An ad that fails never shows; one that passes says why in «Заметки» ("высота 50 см (книга моделей: Midea MDWT-527TFG)"), and passing ads no new product matched join the section on their own (within budget, cheapest first, at most 5); an ad nothing answers stays, marked "не проверено: высотой до 50 см". Photos are not read yet.
+Module: `services/matching`, `services/used_specs`, `llm/canonicalize`, `knowledge/store`
 
 ### Output
 

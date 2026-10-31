@@ -153,7 +153,9 @@ _SCHEMA_GUIDE = (
     '  - `codes`: model codes / SKUs (e.g. "MEO703", "F300", "RL-670");\n'
     "  - `aliases`: common marketplace/OLX title variants for the same model;\n"
     "  - `reference_price`: official price of a genuine item in Kazakhstan, KZT "
-    "integer, or null when unknown.\n\n"
+    "integer, or null when unknown;\n"
+    '  - `specs`: the model\'s sizes when known, as a card states them: {"Ширина": '
+    '"55 см", "Глубина": "34.5 см", "Высота": "50 см"}; {} when unknown.\n\n'
     "`category_type`: classify the category as one of:\n"
     f'  - "{SPEC_DRIVEN}" (default) — ranked on specs + brand (electronics, '
     "appliances, tools, irrigators...);\n"
@@ -376,7 +378,10 @@ async def learn_from_notes(
     stored = await load_profile(category) or CategoryProfile(slug=category)
     stored_brand, stored_model = stored.brand_book, stored.model_book
     stored_ingredient = stored.ingredient_book
-    # The notes are the overlay: they add brands; a stored brand keeps its tier.
+    # The notes are the overlay: they add brands; a stored brand keeps its tier. Notes never
+    # write official stores: the extractor took product pages and RU sites for them, and
+    # only web learning checks a store's prices (``verify_store_floors``).
+    new_brand = new_brand.model_copy(update={"official_stores": {}})
     merged_brand = merge_brand_books(stored_brand or BrandBook(), new_brand, rated)
     merged_model = with_book_spelling(
         merge_model_books(stored_model or ModelBook(), new_model), merged_brand

@@ -135,6 +135,7 @@ class UsedListing(BaseModel):
     con: str = _USED_CON
     canonical: str | None = None  # ModelBook label, e.g. "Xiaomi Water Flosser 2 (MEO705)"
     standalone: bool = False  # True: no new-product match, renderers skip the saving math
+    fit: str = ""  # the size limit's verdict: "высота 50 см (карточка Kaspi)", "не проверено: …"
 
 
 # A name word followed by a short number: "iphone 13", "wp-100", "redmi 9". The tokens drop
@@ -383,7 +384,7 @@ def ad_text(c: Candidate) -> str:
     return f"{c.title}\n{c.specs.get('description', '')}"
 
 
-def _used_con(c: Candidate) -> str:
+def used_con_of(c: Candidate) -> str:
     """The standing used-market caveat plus every defect the seller admits to."""
     defects = find_defects(ad_text(c))
     if not defects:
@@ -470,7 +471,7 @@ def match_used_listings(
                 matched_title=best.title,
                 city=u.specs.get("city"),
                 url=u.url,
-                con=_used_con(u),
+                con=used_con_of(u),
                 canonical=canonical,
             )
         )
@@ -544,7 +545,7 @@ def notable_used_listings(
             price=u.price,
             city=u.specs.get("city"),
             url=u.url,
-            con=_used_con(u),
+            con=used_con_of(u),
             standalone=True,
         )
         for _tier, u in candidates[:_NOTABLE_USED_TOP_N]
@@ -593,7 +594,7 @@ def unbranded_used_listings(
             matched_title=ref.title,
             city=u.specs.get("city"),
             url=u.url,
-            con=_used_con(u),
+            con=used_con_of(u),
         )
         for u, ref in pairs[:_NOTABLE_USED_TOP_N]
     ]
@@ -818,7 +819,7 @@ def cheapest_used_listings(used: list[Candidate], budget: int, category: str) ->
             price=u.price,
             city=u.specs.get("city"),
             url=u.url,
-            con=_used_con(u),
+            con=used_con_of(u),
             standalone=True,
         )
         for u in fitting[:_NOTABLE_USED_TOP_N]

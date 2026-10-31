@@ -273,6 +273,11 @@ def test_merge_model_books_matches_a_model_whatever_the_case_and_brand_prefix() 
         "Midea MCFD42900 Mini",
     ]
     assert merged.entries[0].aliases == ["421", "кубик"]
+    kept = merge_model_books(
+        ModelBook(entries=[ModelEntry(canonical="A1", brand="A", specs={"Высота": "50 см"})]),
+        ModelBook(entries=[ModelEntry(canonical="A1", brand="A", codes=["A1"])]),
+    )
+    assert kept.entries[0].specs == {"Высота": "50 см"}
 
 
 # --- one-time import of the pre-store JSON files ------------------------------

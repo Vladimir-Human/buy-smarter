@@ -678,7 +678,7 @@ def test_the_markdown_says_why_there_is_no_review_summary_as_the_app() -> None:
 def test_the_markdown_olx_table_says_what_each_ad_was_compared_with_as_the_app() -> None:
     md = render_markdown(_result(), top=3)
 
-    assert "| Объявление | Цена | Дешевле нового на | Сравнили с | Город | Минус |" in md
+    assert "| Объявление | Цена | Дешевле нового на | Сравнили с | Город | Заметки |" in md
     assert "Xiaomi Water Flosser 2 MEO705" in md
     assert "-18" not in md  # "Дешевле нового на" already says less
 

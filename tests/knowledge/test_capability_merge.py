@@ -149,7 +149,10 @@ async def test_notes_add_brands_but_never_retier_or_respell_a_stored_one(
     monkeypatch, tmp_path: Path
 ) -> None:
     async def _extract(category: str, notes: str):
-        brand = BrandBook(tiers={"HAIER": "A", "DAUSCHER": "C", "Dauscher": "B"})
+        brand = BrandBook(
+            tiers={"HAIER": "A", "DAUSCHER": "C", "Dauscher": "B"},
+            official_stores={"DAUSCHER": "https://dauscher.ru/product/1"},
+        )
         model = ModelBook(entries=[ModelEntry(canonical="Dauscher DD-2255", brand="dauscher")])
         return CategoryKnowledge(brand, model, "spec_driven", IngredientBook())
 
@@ -163,6 +166,7 @@ async def test_notes_add_brands_but_never_retier_or_respell_a_stored_one(
     brand, model, _, _ = await generate_module.learn_from_notes(notes, "посудомойка")
 
     assert brand.tiers == {"Haier": "B", "DAUSCHER": "C"}
+    assert brand.official_stores == {}
     assert [e.brand for e in model.entries] == ["DAUSCHER"]
 
 

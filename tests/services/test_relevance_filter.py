@@ -199,6 +199,7 @@ async def test_new_and_used_relevance_passes_run_at_the_same_time(monkeypatch) -
             budget_max=None,
             exclude_substances=[],
             required_features=[],
+            product_type=None,
         ),
         profile=SimpleNamespace(brand_book=None, model_book=None),
         capabilities=capabilities,

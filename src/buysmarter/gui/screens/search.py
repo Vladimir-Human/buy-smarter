@@ -490,11 +490,7 @@ class SearchScreen(QWidget):
         if self.is_running():
             return
         query = self.query.text().strip()
-        selected = [
-            name
-            for name, box in self.sources.items()
-            if box.isChecked() and name not in self._unavailable
-        ]
+        selected = self._selected_sources()
         if not query or not selected:
             self.message.setText("Введите запрос и выберите хотя бы один маркетплейс.")
             return
@@ -511,11 +507,7 @@ class SearchScreen(QWidget):
         summary = self.review_summary.isChecked()
         self._run = SearchRun(query, use_llm, self._states, summary)
         self._last_rounds = (answer, clarify_round, no_clarify)
-        rounds: dict[str, Any] = {"answer": answer} if answer is not None else {}
-        if clarify_round:
-            rounds["clarify_round"] = clarify_round
-        if no_clarify:
-            rounds["no_clarify"] = True
+        rounds = _round_kwargs(answer, clarify_round, no_clarify)
         coro = self._search(
             query,
             city=self.city.text().strip() or None,
@@ -532,6 +524,14 @@ class SearchScreen(QWidget):
         self._job.finished.connect(self._on_finished)
         self._job.failed.connect(self._on_failed)
         self._job.cancelled.connect(self._on_cancelled)
+
+    def _selected_sources(self) -> list[str]:
+        """The ticked marketplaces that are available."""
+        return [
+            name
+            for name, box in self.sources.items()
+            if box.isChecked() and name not in self._unavailable
+        ]
 
     async def _search(
         self, query: str, *, excluded_brands: list[str], **kwargs: Any
@@ -712,3 +712,13 @@ class SearchScreen(QWidget):
         self.trusted_only.setEnabled(not running)
         for name, box in self.sources.items():
             box.setEnabled(not running and name not in self._unavailable)
+
+
+def _round_kwargs(answer: str | None, clarify_round: int, no_clarify: bool) -> dict[str, Any]:
+    """Only the clarification arguments a round sets, the rest left to recommend's defaults."""
+    rounds: dict[str, Any] = {"answer": answer} if answer is not None else {}
+    if clarify_round:
+        rounds["clarify_round"] = clarify_round
+    if no_clarify:
+        rounds["no_clarify"] = True
+    return rounds

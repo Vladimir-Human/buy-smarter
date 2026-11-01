@@ -280,6 +280,31 @@ class ReportScreen(QScrollArea):
         self.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self.setWidget(_empty_page())
 
+    def _heading(self, result: RecommendResult, run: SearchRun) -> tuple[QVBoxLayout, QPushButton]:
+        """The query, its constraints and notes, how it was assessed and the «Настроить» link."""
+        heading = QVBoxLayout()
+        heading.setSpacing(SPACE["xs"])
+        heading.addWidget(_label(run.query, name="hero"))
+        constraints = constraints_line(result.constraints, result.city_defaulted)
+        heading.addWidget(_label(constraints, role="muted"))
+        for note in request_notes(result):
+            heading.addWidget(_label(note, state="warning"))
+        # The switches close the page; this link at the top leads there.
+        link = QPushButton("Настроить")
+        set_state(link, "flat", "true")
+        link.setObjectName("inlineLink")
+        link.setAccessibleName(f"Настроить: {TOGGLES_TITLE}")
+        link.clicked.connect(self._show_switches)
+        assessed = QHBoxLayout()
+        assessed.setSpacing(SPACE["md"])
+        if how := assessed_note(result):
+            assessed.addWidget(_label(how, role="muted"), 1)
+        assessed.addWidget(link, 0, Qt.AlignmentFlag.AlignTop)
+        if not how:
+            assessed.addStretch(1)
+        heading.addLayout(assessed)
+        return heading, link
+
     def show_result(self, result: RecommendResult, run: SearchRun) -> None:
         # Optional sections: drop handles into the page that setWidget below deletes.
         self.open_best: QPushButton | None = None
@@ -304,27 +329,7 @@ class ReportScreen(QScrollArea):
         layout.setSpacing(PAGE_GAP)
         if result.restricted_note:
             layout.addWidget(_label(f"⚠ {result.restricted_note}", state="warning"))
-        heading = QVBoxLayout()
-        heading.setSpacing(SPACE["xs"])
-        heading.addWidget(_label(run.query, name="hero"))
-        constraints = constraints_line(result.constraints, result.city_defaulted)
-        heading.addWidget(_label(constraints, role="muted"))
-        for note in request_notes(result):
-            heading.addWidget(_label(note, state="warning"))
-        # The switches close the page; this link at the top leads there.
-        self.configure_link = QPushButton("Настроить")
-        set_state(self.configure_link, "flat", "true")
-        self.configure_link.setObjectName("inlineLink")
-        self.configure_link.setAccessibleName(f"Настроить: {TOGGLES_TITLE}")
-        self.configure_link.clicked.connect(self._show_switches)
-        assessed = QHBoxLayout()
-        assessed.setSpacing(SPACE["md"])
-        if how := assessed_note(result):
-            assessed.addWidget(_label(how, role="muted"), 1)
-        assessed.addWidget(self.configure_link, 0, Qt.AlignmentFlag.AlignTop)
-        if not how:
-            assessed.addStretch(1)
-        heading.addLayout(assessed)
+        heading, self.configure_link = self._heading(result, run)
         layout.addLayout(heading)
         if result.knowledge_missing:
             layout.addWidget(self._knowledge_banner(result))
@@ -332,9 +337,8 @@ class ReportScreen(QScrollArea):
         # One primary per screen: while the learn banner shows, «Изучить категорию» is it.
         primary = not result.knowledge_missing
         layout.addWidget(self._best_section(result.recommendation.best, primary=primary))
-        if result.review_summary is not None and (said := summary_lines(result.review_summary)):
-            widgets = [_label(text, state=_SUMMARY_STATE[kind]) for kind, text in said]
-            layout.addWidget(_group(SUMMARY_TITLE, *widgets))
+        if summary := _summary_section(result):
+            layout.addWidget(summary)
         layout.addWidget(self._alternatives_section(result))
         if result.recommendation.rejected_count:
             self.rejected = _group("Отсеяно", _label(rejected_line(result), role="muted"))
@@ -546,3 +550,11 @@ class ReportScreen(QScrollArea):
         table.cellDoubleClicked.connect(lambda row, _col: open_offer(used[row].url))
         self.used = table
         return _group(USED_SECTION, table, _label(_USED_HINT, role="caption"))
+
+
+def _summary_section(result: RecommendResult) -> QGroupBox | None:
+    """The review summary as a group, ``None`` when there is none to show."""
+    if result.review_summary is None or not (said := summary_lines(result.review_summary)):
+        return None
+    widgets = [_label(text, state=_SUMMARY_STATE[kind]) for kind, text in said]
+    return _group(SUMMARY_TITLE, *widgets)

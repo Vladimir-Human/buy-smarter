@@ -4,3 +4,4 @@ exempt:
   private_paths_in_history: repo is public with forks possible; rewriting history costs more than the leaked local paths (no secrets, no employer names)
   deps_drift: checked 2026-10-29, market-sources git main equals PyPI 0.5.0; claude-subprocess main is ahead of PyPI 0.1.3 only with direct=True, which buy-smarter does not use
   internal_files_tracked: .claude/skills/qt-ui is published on purpose, a GUI fix guide for contributors
+  complexity_cognitive: only docs/spikes/clothing-taste is over 15, throwaway measurement scripts ruff already excludes (pyproject extend-exclude); src has none

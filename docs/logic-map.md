@@ -223,10 +223,10 @@ All sources run in parallel; one source failing returns nothing for it and the r
 - only cards whose title matches the category; specs for the top 4 of 8, for all 8 with a size limit (a card without specs skips the check and would pass unchecked).
 
 **OLX**
-- search by category, by the product type when it differs ("посудомоечная машина" for "настольная посудомоечная машина": sellers seldom write the form), by the jargon-free variant and by the head noun, over the city's whole region (OLX `region_id`: Алматы with Алматинская область, so Коксай and Есик too; the city column says where);
+- search by category, by the product type when it differs ("посудомоечная машина" for "настольная посудомоечная машина": sellers seldom write the form), by the jargon-free variant and by the head noun, over the city's whole region (OLX `region_id`: Алматы with Алматинская область, so Коксай and Есик too; the city column says where); then up to 300 ads cheapest first (`search_cheapest`, free ones skipped) within the OLX category the category's and the product type's own hits share (a head noun's hits do not vote: "машина" brings washers): a broad query around a city has hundreds of ads and the relevance order shows ~50; the cards keep the order precise hits, cheapest pages, head-noun hits, and the first 400 stay;
 - keep only cards that match the category, read as used, and are not "for parts".
 
-Module: `services/collect`, `services/size_search`, `services/matching`, `ranking/used_defects`
+Module: `services/collect`, `services/size_search`, `services/olx_search`, `services/matching`, `ranking/used_defects`
 
 ### 9. Normalize
 
@@ -279,11 +279,12 @@ Module: `services/matching`, `normalize/candidate`
 
 Decides: which OLX ads stay. Runs at the same time as step 12: the two LLM passes are one wait.
 - a capability's listing check rejects it (another audience, another tyre or mattress size) → drop;
-- relevance threshold 0.35, stricter than step 12, and no floor: an empty section is fine, a wrong one is not.
+- relevance threshold 0.35, stricter than step 12, and no floor: an empty section is fine, a wrong one is not. With a size limit the ads are judged against the product type ("посудомоечная машина"), not the search phrase: the form the size put there ("настольная") is the size check's job (step 21), and sellers seldom write it;
+- an ad naming every word of that phrase, whatever the endings ("Продам посудомоечную машину"), skips the LLM pass once the accessory pass kept it: Jev scored "Посудомоечная машина б/у за 55.000 тенге" 0.30;
 - a title naming the queried model skips the LLM pass (as in step 12);
 - with at least 5 priced ads, an ad priced under 0.3 of the median is dropped as bait (`_drop_bait_prices`; logged);
 - The threshold applies only on the Jev path; the fallback LLM keeps its own list. If both fail, only ads naming the queried model stay. Without LLM only the accessory heuristic runs.
-Module: `services/recommend`, `llm/relevance`, `capabilities/flow`
+Module: `services/recommend`, `services/matching`, `llm/relevance`, `capabilities/flow`
 
 ### 15. Benchmark (capability enrich)
 

@@ -83,6 +83,7 @@ from buysmarter.services.matching import (
     apply_cross_notes,
     dedupe_cross_source,
     names_query_model,
+    names_whole_phrase,
     used_market,
     used_market_without_pick,
 )
@@ -577,6 +578,18 @@ def relevance_phrase(constraints: QueryConstraints) -> str:
     return strip_exclusions(constraints.search_phrase, constraints.exclude_substances)
 
 
+def used_relevance_phrase(constraints: QueryConstraints) -> str:
+    """What OLX ads are judged against: the product type when the request has a size limit.
+
+    A size limit puts a form into the search phrase ("настольная посудомоечная машина"),
+    and sellers seldom write it: a genuine "Hansa ZWM536SH" scored 0.22 against it. The
+    form is the size check's job there (``used_specs``), not the relevance filter's.
+    """
+    if constraints.product_type and size_limits(constraints.required_features):
+        return constraints.product_type
+    return relevance_phrase(constraints)
+
+
 def _keep_listing(text: str) -> str | None:
     return None
 
@@ -594,8 +607,17 @@ async def _filter_used(
     used = [u for u in used if reject(u.title) is None]
     if not used:
         return used
+    phrase = used_relevance_phrase(constraints)
+    # An ad naming the whole phrase skips the LLM pass, once the accessory pass kept it.
+    plain, _ = _accessory_drops(used, phrase)
+    named = {u.source_product_id for u in plain if names_whole_phrase(phrase, u.title)}
     relevant = await _filter_relevant_candidates(
-        used, relevance_phrase(constraints), use_llm, min_keep=0, keep_threshold=USED_KEEP_THRESHOLD
+        used,
+        phrase,
+        use_llm,
+        protected_ids=named,
+        min_keep=0,
+        keep_threshold=USED_KEEP_THRESHOLD,
     )
     return _drop_bait_prices(relevant)
 

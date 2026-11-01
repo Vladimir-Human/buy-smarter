@@ -1912,7 +1912,7 @@ wheels = [
 [[package]]
 name = "market-sources"
 version = "0.5.0"
-source = { git = "https://github.com/octrow/market-sources?branch=main#107511d296cf91c08bf227854d70cdb9c2802542" }
+source = { git = "https://github.com/octrow/market-sources?branch=main#41caf791d221d9beec7c0f6291a75e05015e5c19" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },

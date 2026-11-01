@@ -209,3 +209,32 @@ async def test_new_and_used_relevance_passes_run_at_the_same_time(monkeypatch) -
     pool = await svc._collect(run, {})
 
     assert [c.source_product_id for c in pool.used] == ["o1"]
+
+
+def test_a_title_names_the_whole_phrase_whatever_the_endings() -> None:
+    from buysmarter.services.matching import names_whole_phrase
+
+    assert names_whole_phrase("посудомоечная машина", "Посудомоечная машина б/у за 55.000 тенге")
+    assert names_whole_phrase("посудомоечная машина", "Продам посудомоечную машину Hansa")
+    assert not names_whole_phrase("посудомоечная машина", "Стиральная машина LG")
+
+
+async def test_an_olx_ad_naming_the_phrase_survives_a_noisy_llm_but_not_the_accessory_pass(
+    monkeypatch,
+) -> None:
+    from buysmarter.ranking.models import QueryConstraints
+
+    async def _drop_all(category, titles, keep_threshold=0.25, **_):
+        return [False] * len(titles)
+
+    monkeypatch.setattr(svc, "filter_relevant", _drop_all)
+    ads = [
+        _cand("1", "Посудомоечная машина б/у за 55.000 тенге", price=55_000),
+        _cand("2", "Таблетки для посудомоечных машин", price=3_000),
+        _cand("3", "Мини мойка для посуды", price=40_000),
+    ]
+    constraints = QueryConstraints(search_phrase="посудомоечная машина")
+
+    kept = await svc._filter_used(ads, constraints, use_llm=True)
+
+    assert [c.source_product_id for c in kept] == ["1"]

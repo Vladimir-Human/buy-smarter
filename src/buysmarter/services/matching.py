@@ -163,6 +163,24 @@ def names_query_model(category: str, title: str) -> bool:
     return bool(wanted) and wanted <= _name_numbers(title).items()
 
 
+_STEM_MIN = 4  # a phrase word shorter than this after trimming its ending is not compared
+
+
+def names_whole_phrase(phrase: str, title: str) -> bool:
+    """Every word of ``phrase`` sits in the title, whatever its ending ("посудомоечную машину").
+
+    For OLX ads: Jev scored "Посудомоечная машина б/у за 55.000 тенге" 0.30 against
+    "посудомоечная машина", the price and "б/у" in a title pull it down. The caller runs
+    the accessory pass first ("Таблетки для посудомоечных машин" names the phrase too).
+    # ponytail: stems by cutting two letters; a stemmer if a real title slips either way.
+    """
+    stems = [
+        w[:-2] if len(w) - 2 >= _STEM_MIN else w for w in re.findall(r"[^\W\d_]+", phrase.lower())
+    ]
+    words = re.findall(r"[^\W\d_]+", title.lower())
+    return bool(stems) and all(any(w.startswith(s) for w in words) for s in stems)
+
+
 # A one-letter model code glued to its number: a chip ("M2") or a line ("S23", "A15").
 _LETTER_CODE = re.compile(r"(?<![^\W_])([a-z])(\d{1,3})(?![^\W_])")
 

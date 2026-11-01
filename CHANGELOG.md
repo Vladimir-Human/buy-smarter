@@ -7,7 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 ### Added
 
 - OLX ads are checked against a size limit ("высотой до 50 см"): the sizes the ad states, then its model's sizes (the model book, a new card of that model, a Kaspi search). An ad that fails is hidden, one that passes says why in «Заметки» and shows even when no new product matched it; an unknown one is marked "не проверено". The model book keeps a model's sizes (`specs`), learned from notes or the web. Learning from notes no longer writes official stores: the extractor took product pages and Russian sites for them.
-- OLX is searched over the city's whole region (Алматы with Алматинская область: Коксай, Есик) and by the product type too ("посудомоечная машина" for "настольная посудомоечная машина").
+- OLX is searched over the city's whole region (Алматы with Алматинская область: Коксай, Есик) and by the product type too ("посудомоечная машина" for "настольная посудомоечная машина"), then up to 300 ads cheapest first within the ads' own OLX category: the relevance order of a broad query shows ~50 of hundreds, and a 55 000 ₸ table-top dishwasher sat around the 260th.
+- With a size limit OLX ads are judged against the product type, not the form the size put into the search phrase, and an ad naming every word of it ("Продам посудомоечную машину") skips the LLM relevance pass: real dishwashers scored 0.22-0.30 and were dropped.
 
 ### Changed
 

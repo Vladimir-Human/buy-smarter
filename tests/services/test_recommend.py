@@ -15,7 +15,6 @@ from buysmarter.services.collect import (
     _brand_targeted_products,
     _collect_kaspi,
     _collect_olx,
-    _head_noun,
 )
 from buysmarter.services.matching import (
     dedupe_cross_source,
@@ -25,6 +24,7 @@ from buysmarter.services.matching import (
     unbranded_used_listings,
     used_market_without_pick,
 )
+from buysmarter.services.olx_search import head_noun
 from buysmarter.services.recommend import NoNewPick, _filter_used, recommend
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples" / "kaspi"
@@ -1176,15 +1176,15 @@ def test_head_noun_tws_naushniki_regression():
     """ "TWS" (len 3) is dropped by the min-length filter, leaving a single
     surviving token — it must still be searched since it narrows the
     two-word original, not silently return None."""
-    assert _head_noun("TWS наушники") == "наушники"
+    assert head_noun("TWS наушники") == "наушники"
 
 
 def test_head_noun_single_word_category_returns_none():
-    assert _head_noun("ирригатор") is None
+    assert head_noun("ирригатор") is None
 
 
 def test_head_noun_multi_word_returns_last_token():
-    assert _head_noun("робот-пылесос") == "пылесос"
+    assert head_noun("робот-пылесос") == "пылесос"
 
 
 # --- HIGH-3a: _head_noun must not degenerate into a bare brand token --------
@@ -1192,12 +1192,12 @@ def test_head_noun_multi_word_returns_last_token():
 
 def test_head_noun_skips_brand_token_falls_back_to_previous():
     book = BrandBook(tiers={"Sony": "A"}, aliases={})
-    assert _head_noun("беспроводные наушники Sony", book) == "наушники"
+    assert head_noun("беспроводные наушники Sony", book) == "наушники"
 
 
 def test_head_noun_without_book_keeps_old_behavior():
     # No book -> deterministic fallback, same as before (brand-unaware).
-    assert _head_noun("беспроводные наушники Sony") == "sony"
+    assert head_noun("беспроводные наушники Sony") == "sony"
 
 
 # --- Fix 1b: targeted hits exempt from _MAX_CARDS ---------------------------
@@ -2185,3 +2185,17 @@ async def test_a_marketplace_that_failed_is_named_in_the_result(
         "ирригатор портативный до 40000 тг", use_llm=False, source=stub_source, persist=False
     )
     assert result.failed_sources == ["ozon"]
+
+
+def test_olx_ads_are_judged_against_the_product_type_under_a_size_limit() -> None:
+    from buysmarter.services.recommend import used_relevance_phrase
+
+    sized = QueryConstraints(
+        search_phrase="настольная посудомоечная машина",
+        product_type="посудомоечная машина",
+        required_features=["высотой до 50 см"],
+    )
+    plain = sized.model_copy(update={"required_features": ["Wi-Fi"]})
+
+    assert used_relevance_phrase(sized) == "посудомоечная машина"
+    assert used_relevance_phrase(plain) == "настольная посудомоечная машина"

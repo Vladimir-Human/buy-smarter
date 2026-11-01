@@ -48,6 +48,7 @@ from buysmarter.services.matching import (
     strip_latin_tokens,
     title_matches_category,
 )
+from buysmarter.services.olx_search import head_noun, olx_cheapest
 from buysmarter.services.ozon_browser import channel, search_browser
 from buysmarter.services.size_search import SizeLimits, sized_kaspi_search
 
@@ -80,8 +81,7 @@ _OZON_SPECS_FOR_SIZED = _OZON_MAX_CARDS
 # OLX is classifieds (one ad == one offer); used listings are interleaved among
 # many new ones across the whole ~50-result pool, and OlxSource serves specs
 # from its search cache (no per-listing HTTP), so we scan the full pool.
-_OLX_MAX_CARDS = 60
-_OLX_HEAD_NOUN_MIN_LEN = 4  # shortest token treated as a searchable head noun
+_OLX_MAX_CARDS = 400  # the relevance searches, then the cheapest-first pages
 
 ALL_SOURCES = ("kaspi", "ozon", "olx")
 
@@ -512,41 +512,6 @@ async def _budget_search(
     return await source.search(query, **kwargs)  # type: ignore[arg-type]
 
 
-def _head_noun(category: str, book: BrandBook | None = None) -> str | None:
-    """Last content token of a category (RU/EN head noun), or ``None`` if
-    searching it separately would just repeat the exact same query.
-
-    OLX classifieds full-text search ANDs terms, so a multi-word category like
-    "портативный ирригатор" returns far fewer ads than the bare noun
-    "ирригатор" — we broaden recall by also searching the head noun. Short
-    jargon tokens (len < ``_OLX_HEAD_NOUN_MIN_LEN``, e.g. "TWS") are dropped
-    before picking the head noun, same reasoning as ``strip_latin_tokens``;
-    a SINGLE surviving token still broadens recall whenever it differs from
-    the full (lowercased) category string — e.g. "TWS наушники" drops to one
-    token, "наушники", which is strictly narrower than the two-word original.
-
-    ``book``, when given, ALSO drops a token that is itself a known brand/
-    model name (e.g. "Sony" in "беспроводные наушники Sony", "Dyson" in "фен
-    Dyson Supersonic") — searching a bare brand name on OLX with no category
-    filter downstream floods the pool with that brand's unrelated catalog
-    (docs/PLAN.md "Ranking-фиксы"); the previous non-brand token is used
-    instead, falling out naturally once brand tokens are filtered before
-    picking the tail.
-    """
-    lowered_category = category.lower().strip()
-    tokens: list[str] = [
-        t for t in re.findall(r"[^\W\d_]+", lowered_category) if len(t) >= _OLX_HEAD_NOUN_MIN_LEN
-    ]
-    if book is not None:
-        tokens = [t for t in tokens if book.resolve(t)[0] is None]
-    if not tokens:
-        return None
-    noun = tokens[-1]
-    if len(tokens) >= 2:
-        return noun
-    return noun if noun != lowered_category else None
-
-
 async def _olx_search(
     source: ProductSource,
     category: str,
@@ -561,22 +526,23 @@ async def _olx_search(
     The full-category hits come first (most relevant); the product type ("посудомоечная
     машина" for "настольная посудомоечная машина": sellers seldom write the form), the
     latin-jargon-stripped variant ("TWS наушники" -> "наушники") and head-noun hits widen
-    the pool so used deals hidden behind a narrow/jargon-heavy query surface.
+    the pool so used deals hidden behind a narrow/jargon-heavy query surface. Then the
+    cheapest-first pages within the category the precise hits share (``olx_cheapest``).
     """
-    queries = [category]
+    precise = [category]
     if product_type and product_type.lower() != category.lower():
-        queries.append(product_type)
-    stripped = strip_latin_tokens(category, book)
-    if stripped is not None:
-        queries.append(stripped)
-    noun = _head_noun(category, book)
-    if noun is not None:
-        queries.append(noun)
-    products: list[RawProduct] = []
-    for query in dict.fromkeys(queries):
-        found = await _budget_search(source, query, budget, city, region=True)
-        products = _dedupe_products(products + found)
-    return products
+        precise.append(product_type)
+    broad = [q for q in (strip_latin_tokens(category, book), head_noun(category, book)) if q]
+    hits: dict[str, list[RawProduct]] = {}
+    for query in dict.fromkeys(precise + broad):
+        hits[query] = await _budget_search(source, query, budget, city, region=True)
+    precise_hits = [p for q in dict.fromkeys(precise) for p in hits[q]]
+    broad_hits = [p for q in broad if q not in precise for p in hits[q]]
+    # the category comes from the precise hits: a head noun ("машина") brings washers
+    query = product_type or category
+    cheapest = await olx_cheapest(source, query, budget, city, precise_hits, book)
+    # the broad hits last: the card limit cuts them first
+    return _dedupe_products(precise_hits + cheapest + broad_hits)
 
 
 def _is_used(condition: str | None) -> bool:

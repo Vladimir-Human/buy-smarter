@@ -41,7 +41,7 @@ if not importlib.util.find_spec("PySide6"):
     collect_ignore_glob.append("gui")  # the directory itself: its conftest imports PySide6
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(items):
     """Mark the server tests, so `-m "not server"` selects the core suite."""
     root = Path(__file__).parent
     for item in items:

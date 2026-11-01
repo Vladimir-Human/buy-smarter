@@ -65,11 +65,13 @@ def test_an_empty_style_profile_keeps_it_off_even_when_the_category_has_it() -> 
     assert CAP.setting(ON, SNEAKERS) is None
 
 
-def test_a_category_without_it_stays_off_whatever_the_profile(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_a_category_without_it_stays_off_whatever_the_profile() -> None:
     assert CAP.setting(ResolvedProfile(slug="ирригатор"), SNEAKERS) is None
 
 
-def test_brands_become_kaspi_searches_that_must_name_the_brand(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_brands_become_kaspi_searches_that_must_name_the_brand() -> None:
     active = activate(REGISTRY, ON, SNEAKERS, query="мужские кроссовки", use_llm=False)
 
     assert active.searches() == [
@@ -106,7 +108,8 @@ async def test_the_category_brands_go_first_and_other_categories_brands_last() -
     ]
 
 
-def test_the_closest_card_to_a_liked_photo_scores_highest_and_says_why(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_the_closest_card_to_a_liked_photo_scores_highest_and_says_why() -> None:
     near = _card("1", **{LIKE_PHOTO: (0.9, "look.jpg")})
     far = _card("2", **{LIKE_PHOTO: (0.4, "look.jpg")})
     mid = _card("3", **{LIKE_PHOTO: (0.6, "boots.jpg")})
@@ -119,7 +122,8 @@ def test_the_closest_card_to_a_liked_photo_scores_highest_and_says_why(styled) -
     assert "look.jpg" in scores["1"].explanation
 
 
-def test_a_liked_phrase_counts_when_there_are_no_photos(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_a_liked_phrase_counts_when_there_are_no_photos() -> None:
     near = _card("1", **{LIKE_TEXT: (0.3, "technical shell jacket")})
     far = _card("2", **{LIKE_TEXT: (0.1, "technical shell jacket")})
 
@@ -130,7 +134,8 @@ def test_a_liked_phrase_counts_when_there_are_no_photos(styled) -> None:
 
 
 @pytest.mark.parametrize("component", [NEVER_PHOTO, NEVER_TEXT])
-def test_a_card_close_to_a_never_sample_goes_down_and_says_so(styled, component) -> None:
+@pytest.mark.usefixtures("styled")
+def test_a_card_close_to_a_never_sample_goes_down_and_says_so(component) -> None:
     pool = [
         _card(str(i), **{LIKE_PHOTO: (0.7, "look.jpg"), component: (0.1, "glossy white sole")})
         for i in range(5)
@@ -144,7 +149,8 @@ def test_a_card_close_to_a_never_sample_goes_down_and_says_so(styled, component)
     assert "нет: glossy white sole" in hit.explanation
 
 
-def test_a_card_without_a_photo_gets_half_and_says_why(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_a_card_without_a_photo_gets_half_and_says_why() -> None:
     seen = _card("1", **{LIKE_PHOTO: (0.9, "look.jpg")})
     blind = _card("2")
 
@@ -154,7 +160,8 @@ def test_a_card_without_a_photo_gets_half_and_says_why(styled) -> None:
     assert axis.explanation == NO_PHOTO
 
 
-def test_strength_sets_the_axis_weight_and_zero_switches_it_off(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_strength_sets_the_axis_weight_and_zero_switches_it_off() -> None:
     asyncio.run(profile.set_strength(35))
     _load()
     active = activate(REGISTRY, ON, SNEAKERS, query="кроссовки", use_llm=False)
@@ -206,7 +213,8 @@ def test_a_strong_or_weak_style_is_said_in_russian() -> None:
     assert pro_con(f"weak {STYLE}") == "не ваш стиль"
 
 
-def test_a_card_with_no_liked_sample_of_its_type_gets_half_and_says_why(styled) -> None:
+@pytest.mark.usefixtures("styled")
+def test_a_card_with_no_liked_sample_of_its_type_gets_half_and_says_why() -> None:
     jeans = _card("1", **{LIKE_PHOTO: (0.9, "look.jpg")})
     untyped = _card("2", **{NEVER_PHOTO: (0.1, "bad.jpg")})  # no liked sample of its type
 

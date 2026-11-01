@@ -258,7 +258,8 @@ def stored_card(monkeypatch):
 
 
 @pytest.mark.parametrize(("command", "disliked"), [("like", False), ("dislike", True)])
-def test_a_found_product_becomes_a_sample_by_its_link(stored_card, encoder, command, disliked):
+@pytest.mark.usefixtures("stored_card")
+def test_a_found_product_becomes_a_sample_by_its_link(encoder, command, disliked):
     result = _style(command, _CARD_URL + "?c=750000000")  # the link as copied, with its tail
 
     assert result.exit_code == 0
@@ -275,7 +276,8 @@ def test_a_link_no_search_saved_is_refused_with_advice(encoder) -> None:
     assert _profile().photos == []
 
 
-def test_a_card_photo_that_cannot_be_fetched_says_so(stored_card, encoder, monkeypatch) -> None:
+@pytest.mark.usefixtures("stored_card")
+def test_a_card_photo_that_cannot_be_fetched_says_so(encoder, monkeypatch) -> None:
     async def down(url):
         raise profile.NoCardPhoto(url)
 

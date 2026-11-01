@@ -24,7 +24,8 @@ def no_asyncpg(monkeypatch):
     monkeypatch.setattr(base, "create_async_engine", create)
 
 
-async def test_an_engine_without_its_driver_is_built_and_fails_only_when_used(no_asyncpg, caplog):
+@pytest.mark.usefixtures("no_asyncpg")
+async def test_an_engine_without_its_driver_is_built_and_fails_only_when_used(caplog):
     with caplog.at_level(logging.WARNING):
         engine = base.make_engine(_PG_URL)
     assert "asyncpg" in caplog.text
@@ -34,6 +35,7 @@ async def test_an_engine_without_its_driver_is_built_and_fails_only_when_used(no
     await engine.dispose()
 
 
-async def test_the_store_reads_as_not_usable_without_its_driver(no_asyncpg):
+@pytest.mark.usefixtures("no_asyncpg")
+async def test_the_store_reads_as_not_usable_without_its_driver():
     assert await schema_is_current(_PG_URL) is False
     assert await base.db_reachable(_PG_URL) is False

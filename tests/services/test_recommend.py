@@ -195,8 +195,9 @@ def saved_budget(monkeypatch) -> None:
     monkeypatch.setattr(recommend_module, "stored_budget", _saved)
 
 
+@pytest.mark.usefixtures("saved_budget")
 async def test_a_saved_budget_applies_when_neither_the_query_nor_the_caller_names_one(
-    stub_source: StubKaspiSource, saved_budget
+    stub_source: StubKaspiSource,
 ) -> None:
     result = await recommend(
         "ирригатор портативный", use_llm=False, source=stub_source, persist=False
@@ -204,8 +205,9 @@ async def test_a_saved_budget_applies_when_neither_the_query_nor_the_caller_name
     assert result.constraints.budget_max == 50000
 
 
+@pytest.mark.usefixtures("saved_budget")
 async def test_the_query_and_the_caller_budget_beat_the_saved_one(
-    stub_source: StubKaspiSource, saved_budget
+    stub_source: StubKaspiSource,
 ) -> None:
     query = "ирригатор портативный до 40000 тг"
     from_query = await recommend(query, use_llm=False, source=stub_source, persist=False)

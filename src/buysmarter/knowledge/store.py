@@ -241,25 +241,41 @@ async def resolve_and_ask(
     that picks a related profile; their answers come back, ``{}`` when that call failed and
     ``None`` when no Jev call was made (phase 3, decision 7).
     """
-    slug = _slug(category)
+    slug, phrase = _slug(category), search_phrase or ""
     own, bookless = await _stored_own(category, slug, search_phrase, use_llm)
-    if own is not None and use_llm and _narrowable(own, slug, search_phrase or ""):
-        closer = await _closer_profile(own.slug, slug, search_phrase or "")
-        if closer is not None:
-            logger.info("knowledge narrowed: %s -> %s", own.slug, closer)
-            bookless, own = _user_choices(own), await load_profile(closer)
+    if own is not None and use_llm:
+        own, bookless = await _narrowed(own, bookless, slug, phrase)
     answers: Answers | None = None
     if own is None and use_llm:
-        matched, answers = await _match_related(slug, search_phrase or "", questions or {})
+        matched, answers = await _match_related(slug, phrase, questions or {})
         if matched is not None:
             logger.info("knowledge matched: %s -> %s", category, matched)
             own = await load_profile(matched)
     parent = await load_profile(own.parent) if own is not None and own.parent else None
-    resolved = resolve_fields(slug, own, parent)
-    if bookless is not None and bookless.capabilities:
-        capabilities = combine_all(resolved.capabilities, bookless.capabilities)
-        resolved = resolved.model_copy(update={"capabilities": capabilities})
+    resolved = _with_switches(resolve_fields(slug, own, parent), bookless)
     return _with_seed_books(resolved, category), answers
+
+
+def _with_switches(resolved: ResolvedProfile, bookless: CategoryProfile | None) -> ResolvedProfile:
+    """The bookless record's capabilities laid on top of the profile found (decision 1)."""
+    if bookless is None or not bookless.capabilities:
+        return resolved
+    capabilities = combine_all(resolved.capabilities, bookless.capabilities)
+    return resolved.model_copy(update={"capabilities": capabilities})
+
+
+async def _narrowed(
+    own: CategoryProfile, bookless: CategoryProfile | None, slug: str, phrase: str
+) -> tuple[CategoryProfile | None, CategoryProfile | None]:
+    """A closer composition profile the phrase names, the record's user switches kept (#25)."""
+    if not _narrowable(own, slug, phrase):
+        return own, bookless
+    closer = await _closer_profile(own.slug, slug, phrase)
+    if closer is None:
+        return own, bookless
+    logger.info("knowledge narrowed: %s -> %s", own.slug, closer)
+    choices = _user_choices(own)
+    return await load_profile(closer), choices
 
 
 async def _stored_own(

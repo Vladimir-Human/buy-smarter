@@ -41,19 +41,13 @@ class Size(Capability):
         updates: dict[str, Any] = {}
         if not constraints.size and (size := query_size(text)):
             updates["size"] = size
-        phrase = constraints.search_phrase
-        if query_size(phrase):
-            phrase = strip_size(phrase) or phrase
-        # a bare "42" after an apparel word, once the size is known (the parser or the text)
-        if (size := updates.get("size") or constraints.size) and is_apparel(phrase):
-            phrase = strip_named_size(phrase, size) or phrase
+        phrase = _without_size(constraints.search_phrase, updates.get("size") or constraints.size)
         if phrase != constraints.search_phrase:
             updates["search_phrase"] = phrase
-        features = [
-            f for f in constraints.required_features if not (is_apparel(text) and is_size_phrase(f))
-        ]
-        if len(features) != len(constraints.required_features):
-            updates["required_features"] = features
+        if is_apparel(text):
+            features = [f for f in constraints.required_features if not is_size_phrase(f)]
+            if len(features) != len(constraints.required_features):
+                updates["required_features"] = features
         return constraints.model_copy(update=updates) if updates else constraints
 
     def notes(
@@ -68,3 +62,13 @@ class Size(Capability):
         if size and not has_size(candidate.title, size):
             return pros, [*cons, _SIZE_UNVERIFIED_CON.format(size=size)]
         return pros, cons
+
+
+def _without_size(phrase: str, size: str | None) -> str:
+    """The search phrase without "42 размер", nor a bare "42" after an apparel word once the
+    size is known (the parser or the text)."""
+    if query_size(phrase):
+        phrase = strip_size(phrase) or phrase
+    if size and is_apparel(phrase):
+        phrase = strip_named_size(phrase, size) or phrase
+    return phrase

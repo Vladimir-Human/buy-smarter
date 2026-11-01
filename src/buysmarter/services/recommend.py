@@ -155,6 +155,17 @@ def _no_llm_route() -> bool:
     return current_route(get_settings()) is None
 
 
+def _skipped_llm_steps(use_llm: bool) -> list[str]:
+    """The LLM steps a search asked for but cannot run: no route to an LLM is set up."""
+    return list(NO_LLM_STEPS) if use_llm and _no_llm_route() else []
+
+
+async def _save_prices(pool: "_Pool", search_phrase: str) -> None:
+    """The prices the search saw, for the price history."""
+    if pool.persist_rows:
+        await save_snapshots(pool.persist_rows, search_phrase)
+
+
 async def _parse(query: str, use_llm: bool) -> QueryConstraints:
     if not use_llm or _no_llm_route():
         return parse_query_naive(query)
@@ -486,7 +497,7 @@ async def recommend(
     marketplace: the caller learns it and calls again without the flag (ADR-0006).
     """
     total_start = time.perf_counter()
-    skipped_llm_steps = list(NO_LLM_STEPS) if use_llm and _no_llm_route() else []
+    skipped_llm_steps = _skipped_llm_steps(use_llm)
     use_llm = use_llm and not skipped_llm_steps
     ask = Clarify(answer, clarify_round, no_clarify)
     query, understood, assumed = await understand_request(query, parsed, use_llm, ask)
@@ -494,6 +505,7 @@ async def recommend(
         query, understood, city, budget, trusted_only, use_llm
     )
     profile = await _resolve_knowledge(constraints, use_llm)
+    knowledge_missing = profile.brand_book is None and profile.model_book is None
     await prime(REGISTRY)
     capabilities = activate(REGISTRY, profile, constraints, query=query, use_llm=use_llm)
     ask_capability(capabilities.question(), constraints, ask.round, ask.no_clarify)
@@ -502,7 +514,7 @@ async def recommend(
             constraints.product_type,
             intent=constraints.intent,
             use_llm=use_llm,
-            knowledge_missing=profile.brand_book is None and profile.model_book is None,
+            knowledge_missing=knowledge_missing,
         )
     # capabilities add or remove marketplaces (a used query brings OLX) before they are opened
     requested = pick_sources(REGISTRY, profile, constraints, sources or ["kaspi"])
@@ -519,8 +531,8 @@ async def recommend(
                 profile.model_book,
                 active.get("kaspi"),
             )
-        if persist and pool.persist_rows:  # prices seen count even when nothing is picked
-            await save_snapshots(pool.persist_rows, constraints.search_phrase)
+        if persist:  # prices seen count even when nothing is picked
+            await _save_prices(pool, constraints.search_phrase)
         recommendation, review_summary, review_summary_note = await _rank(
             run, pool, active, with_review_summary
         )
@@ -544,7 +556,7 @@ async def recommend(
         city_unsupported=find_city(constraints.city) is None,
         review_summary=review_summary,
         review_summary_note=review_summary_note,
-        knowledge_missing=profile.brand_book is None and profile.model_book is None,
+        knowledge_missing=knowledge_missing,
         skipped_llm_steps=skipped_llm_steps,
         unavailable_sources=[name for name in requested if name not in active],
         failed_sources=pool.failed,

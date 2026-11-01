@@ -591,10 +591,7 @@ def _verdict_pros_cons(
         pros.insert(0, _OFFICIAL_SELLER_PRO)
     # The only source of a "weak brand" con is an unknown brand (factor 0.15).
     cons = ["неизвестный бренд" if c == "weak brand" else c for c in cons]
-    cons += _price_cons(candidate, flags)
-    risk, ratio = price_risk(candidate, market)
-    if risk is Risk.LOW and ratio is not None:
-        cons.append(gap_con(candidate, ratio))
+    cons += _price_cons(candidate, flags) + _price_gap_cons(candidate, market)
     verdict = _price_history_verdict(candidate)
     if verdict is not None:
         (pros if verdict[0] == "pro" else cons).append(verdict[1])
@@ -605,10 +602,19 @@ def _verdict_pros_cons(
     if missed_model is not None:
         cons.append(_MODEL_MISMATCH_CON.format(token=missed_model))
     cons.extend(spec_conflicts(candidate.title, candidate.specs))
+    return pros + _fast_delivery_pros(candidate, today), cons
+
+
+def _price_gap_cons(candidate: Candidate, market: MarketContext) -> list[str]:
+    """How far under the genuine item's price a suspiciously cheap listing is."""
+    risk, ratio = price_risk(candidate, market)
+    return [gap_con(candidate, ratio)] if risk is Risk.LOW and ratio is not None else []
+
+
+def _fast_delivery_pros(candidate: Candidate, today: date) -> list[str]:
+    """A pro when the listing is in stock and arrives fast."""
     note = delivery_note(candidate, today) if candidate.availability else None
-    if note is not None and is_fast_bucket(note[0]):
-        pros.append(note[1])
-    return pros, cons
+    return [note[1]] if note is not None and is_fast_bucket(note[0]) else []
 
 
 def _score_confidence(candidate: Candidate, market: MarketContext) -> float:

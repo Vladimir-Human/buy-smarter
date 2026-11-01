@@ -84,7 +84,7 @@ async def olx_cheapest(
         return []
     category_id = categories.most_common(1)[0][0]
     try:
-        return await search_cheapest(
+        cheapest: list[RawProduct] = await search_cheapest(
             query,
             city=city,
             budget=budget,
@@ -95,3 +95,4 @@ async def olx_cheapest(
     except Exception as exc:  # noqa: BLE001 - the extra pages must not cost the OLX pool
         logger.info("olx: cheapest-first search failed: %r", exc)
         return []
+    return cheapest

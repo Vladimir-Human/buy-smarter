@@ -133,15 +133,22 @@ async def check_used_sizes(
     models = _ModelSpecs(pool, book, kaspi) if book is not None else None
     fits: dict[str, Fit] = {}
     for ad in used:
-        text = ad_text(ad)
-        fit = _fit(limits, ad_sizes(text), "по объявлению")
-        entry = book.resolve_entry(text) if book is not None else None
-        if fit is None and models is not None and entry is not None:
-            found = await models.of(entry)
-            fit = _fit(limits, *found) if found is not None else None
-        fits[_key(ad)] = fit or Fit(None, unknown)
+        fits[_key(ad)] = await _ad_fit(ad, limits, book, models) or Fit(None, unknown)
     logger.info("olx sizes: %s", {k[-40:]: f.ok for k, f in fits.items()})
     return fits
+
+
+async def _ad_fit(
+    ad: Candidate, limits: list[str], book: ModelBook | None, models: _ModelSpecs | None
+) -> Fit | None:
+    """The ad's fit by its own words, else by its model's sizes; None when neither tells."""
+    text = ad_text(ad)
+    fit = _fit(limits, ad_sizes(text), "по объявлению")
+    if fit is not None or book is None or models is None:
+        return fit
+    entry = book.resolve_entry(text)
+    found = await models.of(entry) if entry is not None else None
+    return _fit(limits, *found) if found is not None else None
 
 
 def _key(item: UsedListing | Candidate) -> str:

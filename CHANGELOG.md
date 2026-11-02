@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-02
+
 ### Added
 
 - OLX ads are checked against a size limit ("высотой до 50 см"): the sizes the ad states, then its model's sizes (the model book, a new card of that model, a Kaspi search). An ad that fails is hidden, one that passes says why in «Заметки» and shows even when no new product matched it; an unknown one is marked "не проверено". The model book keeps a model's sizes (`specs`), learned from notes or the web. Learning from notes no longer writes official stores: the extractor took product pages and Russian sites for them.
@@ -13,7 +15,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 ### Changed
 
 - The OLX table's last column is «Заметки» (was «Минус»): it carries the size check next to the caveats.
-
 - A request with a size limit ("высотой до 50 см") collects a wider pool: Kaspi is searched again with its own size facet ("Высота: менее 75 см"), both pages it serves (24 cards instead of 12), and every Ozon card gets its specs, so no card wins only because it was never checked. "посудомойка высотой до 50 см" now passes 23 compact machines instead of 2.
 - The report says how many goods «Только известные бренды» dropped and that their brands are missing from the category's brand book.
 
@@ -21,8 +22,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 - `buysmarter learn` (and «Из заметок…») no longer re-tiers a learned brand from notes that never rated it (Haier B → A), no longer keeps one brand twice in two cases ("DAUSCHER" and "Dauscher"), and no longer takes the shops that sell a product (Kaspi, Technodom) for the brand's official sellers: notes only add brands the category lacks, and re-tier only a brand they judge themselves ("Xiaomi is actually solid"). Model books merge one model whatever the case and brand prefix ("CDWC421BE-i" is "Comfee CDWC421BE-i"), keep the fuller name and join the aliases and codes.
 - Ozon's combined size spec ("Размер (ДхШхВ), см": "50х55х43,8") counts for a size limit.
-
 - "посудомоечная машина высотой до 50 см" rejected every card whose specs were read, the 44 cm cubes too, and kept only the unchecked ones: a size limit among the required features ("высотой до 50 см", "глубина не более 440 мм") is now compared as a number with the spec of that side, not looked up as text.
+
+### Security
+
+- `joserfc` 1.7.6 (CVE-2026-119283, CVE-2026-119284) in the lock file.
 
 ## [0.12.0] - 2026-10-31
 

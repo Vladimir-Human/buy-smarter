@@ -96,18 +96,23 @@ def _range(query: str) -> Budget | None:
     return None
 
 
+def _multiplied(value: int, mult: str, prep: str) -> int | None:
+    """An amount with a multiplier word ("15к", "2 штуки"), None when it is not money."""
+    word = mult.lower()
+    if word.startswith("штук") and not prep:
+        return None
+    if word in {"k", "к"}:
+        return value * _THOUSAND if value >= _MIN_K_AMOUNT or prep in {"до", "за"} else None
+    return value * _scale(mult)
+
+
 def _amount_value(query: str, match: re.Match[str]) -> int | None:
     """The money a single amount means, or None when it is not money."""
     value, mult, prep = _number(match["n"]), match["mult"], (match["prep"] or "").strip().lower()
     if match["post"]:
         prep = "до"
     if mult:
-        word = mult.lower()
-        if word.startswith("штук") and not prep:
-            return None
-        if word in {"k", "к"}:
-            return value * _THOUSAND if value >= _MIN_K_AMOUNT or prep in {"до", "за"} else None
-        return value * _scale(mult)
+        return _multiplied(value, mult, prep)
     if match["kzt"]:
         return value
     if prep != "до" or _UNIT_RE.match(query, match.end()):

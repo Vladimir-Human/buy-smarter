@@ -323,9 +323,15 @@ def split_notes(notes: str, max_items: int = MAX_MODELS_PER_CHUNK) -> list[str]:
     if len(starts) <= max_items:
         return [notes]
     preamble = lines[: starts[0]]
+    return ["\n".join(preamble + chunk) for chunk in _chunked(lines[starts[0] :], max_items)]
+
+
+def _chunked(lines: list[str], max_items: int) -> list[list[str]]:
+    """``lines`` cut before the item (or heading) past ``max_items``; a chunk that starts
+    mid-section repeats the section's ``#`` heading."""
     chunks: list[list[str]] = [[]]
     count, heading = 0, ""
-    for line in lines[starts[0] :]:
+    for line in lines:
         is_heading, is_item = line.startswith("#"), bool(_LIST_ITEM.match(line))
         if count >= max_items and (is_heading or is_item):
             chunks.append([] if is_heading or not heading else [heading])
@@ -333,7 +339,7 @@ def split_notes(notes: str, max_items: int = MAX_MODELS_PER_CHUNK) -> list[str]:
         heading = line if is_heading else heading
         count += is_item
         chunks[-1].append(line)
-    return ["\n".join(preamble + chunk) for chunk in chunks]
+    return chunks
 
 
 async def extract_category_knowledge(category: str, notes: str) -> CategoryKnowledge:

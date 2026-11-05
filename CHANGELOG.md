@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-11-05
+
+### Changed
+
+- README is shorter and written in plain language.
+
 ## [0.13.1] - 2026-11-05
 
 ### Fixed

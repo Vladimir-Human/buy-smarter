@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-05
+
+### Fixed
+
+- A stored entry without books under the search phrase no longer hides a profile that has books (logic-map #31).
+- Role picking compares scores in hundredths, so float noise no longer decides a cut or a tie, and a card with price 0 gets neither best_value nor best_budget (logic-map #27, #29).
+
 ## [0.13.0] - 2026-11-02
 
 ### Added

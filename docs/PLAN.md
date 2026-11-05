@@ -108,3 +108,4 @@
 
 - [docs/tasks/2026-10-31-olx-unknown-specs.md](tasks/2026-10-31-olx-unknown-specs.md), [docs/tasks/2026-11-02-roles-lean-findings.md](tasks/2026-11-02-roles-lean-findings.md), [system-design.md](system-design.md).
 - `gh issue list` сейчас пуст (issue #29 учтён в «Открыто», п. 8). `openspec/changes` содержит только `archive`.
+- [skills-roadmap-2026-11-05.md](skills-roadmap-2026-11-05.md): навыки с рынка вакансий, 1 пункт: Terraform + cloud-init на OCI Always Free для живого демо; DevOps-база уже есть

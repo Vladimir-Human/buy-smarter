@@ -436,7 +436,7 @@ wheels = [
 
 [[package]]
 name = "buysmarter"
-version = "0.13.2"
+version = "0.13.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

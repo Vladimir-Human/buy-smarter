@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follo
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-11-05
+
+### Changed
+- Uncaught exceptions in the main thread and worker threads go to the log, the active LLM key is masked by value, and each record is one line.
+
 ## [0.13.2] - 2026-11-05
 
 ### Changed

@@ -296,7 +296,11 @@ async def _stored_own(
         own = await _by_synonym(slug)
     old = _slug(search_phrase) if search_phrase and slug else slug
     if old != slug:
-        own = await _old_slug(own, slug, old, search_phrase or "")
+        found = await _old_slug(own, slug, old, search_phrase or "")
+        if found is not None and found is not own and not found.is_profile:
+            bookless = bookless or found  # no books: its switches lie on top (#31)
+        else:
+            own = found
     return own, bookless
 
 

@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Callable
+from fractions import Fraction
 from math import ceil
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,13 @@ if TYPE_CHECKING:
     pass
 
 _PREMIUM_TIERS = ("A", "B")
+
+_SCORE_STEPS = 100  # scores compare in hundredths: float noise must not decide a cut or a tie
+
+
+def _cents(score: float) -> int:
+    return round(score * _SCORE_STEPS)
+
 
 # best_value only qualifies candidates within this fraction of the best
 # score — otherwise cheap junk (low score, tiny price) wins on score/price
@@ -192,7 +200,7 @@ class _RoleClaims:
         self,
         role: str,
         candidates: list[ScoredCandidate],
-        key: Callable[[ScoredCandidate], float],
+        key: Callable[[ScoredCandidate], float | Fraction],
         reverse: bool,
     ) -> None:
         remaining = [s for s in candidates if self.is_free(s)]
@@ -254,20 +262,20 @@ def _pick_alternatives(
     # Only candidates close to the best score qualify for "best value" — a
     # low-scoring, suspiciously cheap product must not win on score/price
     # ratio alone.
-    threshold = _BEST_VALUE_MIN_SCORE_RATIO * best.total_score
+    threshold = round(_BEST_VALUE_MIN_SCORE_RATIO * _cents(best.total_score))
     # A price <= 0 is an invalid listing (see ``_score_price``): it would divide
     # by zero here and "win" best_budget as the cheapest, so it gets neither role.
     priced = [s for s in eligible if s.candidate.price > 0]
     claims.claim(
         "best_value",
-        [s for s in priced if s.total_score >= threshold],
-        key=lambda s: s.total_score / s.candidate.price,
+        [s for s in priced if _cents(s.total_score) >= threshold],
+        key=lambda s: Fraction(_cents(s.total_score), s.candidate.price),
         reverse=True,
     )
 
     # Quality floor: a candidate scoring far below the best pick must not win
     # best_budget on price alone (e.g. a counterfeit that scores 30/100).
-    budget_threshold = _BEST_BUDGET_MIN_SCORE_RATIO * best.total_score
+    budget_threshold = round(_BEST_BUDGET_MIN_SCORE_RATIO * _cents(best.total_score))
     # "Budget" must undercut the best pick: when the pick is already the cheapest,
     # the next-cheapest leftover is no budget option, so the role is dropped.
     claims.claim(
@@ -275,13 +283,17 @@ def _pick_alternatives(
         [
             s
             for s in priced
-            if s.total_score >= budget_threshold and s.candidate.price < best.candidate.price
+            if _cents(s.total_score) >= budget_threshold
+            and s.candidate.price < best.candidate.price
         ],
         key=lambda s: s.candidate.price,
         reverse=False,
     )
     claims.claim(
-        "best_premium", _premium_pool(eligible, full), key=lambda s: s.candidate.price, reverse=True
+        "best_premium",
+        _premium_pool(eligible, full),
+        key=lambda s: s.candidate.price,
+        reverse=True,
     )
     return claims.alternatives
 

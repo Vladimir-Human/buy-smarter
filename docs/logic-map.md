@@ -120,7 +120,7 @@ In: query text. Out: `QueryConstraints`.
 Branches:
 - LLM: one call extracts all fields: intent (product, need, open, multi, service, unclear), `search_phrase` (what the marketplaces get), `product_type` (the profile key without audience, size or theme), `options` to choose from, `restricted`, `condition`, budget range and note, `fit_target` (the device the goods are for), `dims` (a tyre or mattress size, never a required feature), `exclude_substances` ("без сульфатов" → сульфаты). The phrase is forced into Russian; a named model stays in it ("смартфон iPhone 13"), unless the goods are for it ("чехол на iPhone 15": phrase and type "чехол", fit target "iPhone 15"); a size limit only one form meets puts that form in the phrase ("посудомоечная машина высотой до 50 см" → "настольная посудомоечная машина"). An empty product type falls back to the naive one; no budget and no budget note from the LLM means the budget rules below decide ("до 50 штук" the LLM missed is still 50 000).
 - No LLM or LLM error: intent is product (unclear when the phrase has fewer than two letters, an empty phrase included: «хочу до 20к» is never searched as «хочу»); regex takes budget, city and condition (б/у, новый); the rest of the text becomes the search phrase, and the product type is that phrase without audience and size words; no required features on purpose.
-Budget rules (no LLM): another currency ($, ₽, €) gives no budget, only a note; tenge (and Kazakh "теңгеге"), thousands slang ("тыс", "косарь", "мың", "мыңға", "штук" after "до/за"), "млн" (×1 000 000) and "N k" from 10 up are money; Kazakh "дейін" after the amount means "до"; a bare "до N" is money only without a unit after it (м, кг, лет, МЕ, Вт, шт...) and under 1000 means thousands; a fraction is never money ("до 18.5 кг"), "15.000" is 15 000; "30-40 тыс" and "от 30 до 40 тыс" are ranges, a bare "N до M" is not ("iPhone 15 до 500 тыс": 15 stays in the phrase). The money words leave the search phrase.
+Budget rules (no LLM): another currency ($, ₽, €) gives no budget, only a note; tenge (and Kazakh "теңгеге"), thousands slang ("тыс", "косарь", "мың", "мыңға", "штук" after "до/за"), "млн" (×1 000 000) and "N k" from 10 up or after "до/за" are money; Kazakh "дейін" after the amount means "до"; a bare "до N" is money only without a unit after it (м, кг, лет, МЕ, Вт, шт...) and under 1000 means thousands; a fraction is never money ("до 18.5 кг"), "15.000" is 15 000; "30-40 тыс" and "от 30 до 40 тыс" are ranges, a bare "N до M" is not ("iPhone 15 до 500 тыс": 15 stays in the phrase). The money words leave the search phrase.
 The search phrase drives searches, relevance and the substances read from the query; the product type keys the category profile (step 6). The old `category` field is gone from the parse; the HTTP API still shows it as a deprecated copy of the search phrase.
 Module: `llm/prompts`, `llm/budget`, `services/recommend`
 
@@ -179,7 +179,7 @@ Lookup, once per run (`resolve_profile`):
 - a stored record under this exact slug → its profile, when it has a book or a parent; a record without either (only capabilities from Jev or the user) is no profile: the lookup goes on and its capabilities lie on top of what is found, by precedence;
 - else a profile that lists the slug among its synonyms;
 - else an old record keyed by the whole search phrase ("мужские-кроссовки-42"): when it differs from the product type only by audience or size words, it moves under the product type in one transaction with its synonym and the children's `parent` retarget (over a record without books there, deleted in the same transaction, whose capabilities are combined in) (a lookup running at the same time just reads it back) ("knowledge renamed" in the log); a narrower record ("шампунь-от-перхоти") or one with composition ("детский-крем": composition profiles are narrow) is never moved;
-- an exact narrower or composition record under the phrase wins even over a profile found by the first two steps ("крем-с-адапаленом" over "крем"); such a profile only lists a plain audience or size variant record as a synonym (books are not merged);
+- an exact narrower or composition record under the phrase wins even over a profile found by the first two steps ("крем-с-адапаленом" over "крем"); a record without books (only learning marks or Jev's capabilities) is no profile: its capabilities lie on top of the profile found (#31 ✅); such a profile only lists a plain audience or size variant record as a synonym (books are not merged);
 - with LLM, a record found so far that has books and composition switched on gives way to a closer composition profile when the search phrase says more than the product type: Jev picks among the other composition profiles, seeing the phrase ("крем от акне": "средства-от-акне" over a learned "крем", #25); its books and owners are used, only the record's user switches stay on top, nothing is written; no pick keeps the record;
 - else, with LLM, Jev picks the covering stored profile (options: records with books only) ("солнцезащитный крем" → "косметика"); one cached LLM call only when Jev fails, an unsure Jev answer means no related profile; Jev and the LLM see the search phrase next to the product type, so "крем" from "крем с адапаленом" still finds an acne profile;
 - no substring matching: "чай" does not find "чайник".
@@ -199,7 +199,7 @@ Module: `knowledge/store`, `db/repo`, `knowledge/profile`, `knowledge/brands`, `
 ### 7. Extra searches (capabilities)
 
 Decides: extra Kaspi searches the active capabilities ask for.
-Composition: the required active substances come from the search phrase and required features without their "без X" phrases, mapped to canonical names by the ingredient book; each substance gets searches by its name and its equivalent product names (at most 5).
+Composition: the required active substances come from the search phrase and required features without their "без X" phrases, mapped to canonical names by the ingredient book; each substance gets searches by its name and its equivalent product names (at most 5 in all).
 Style: one search "<product type> <brand>" for up to 6 of the profile's brands, those the category's brand book knows first, then unknown ones, then those only other stored books know (sneaker brands do not crowd out jacket ones); a hit must name the brand.
 No capability asks → none.
 Module: `capabilities/composition`, `capabilities/style`, `services/collect`
@@ -270,7 +270,7 @@ Decides: same product → one candidate, the cheaper.
 Only across sources: a listing never joins a group that already holds one from its source, so two Kaspi cards or two items of one official store stay apart; an official-store item still merges with its Kaspi or Ozon copy.
 Same product = same canonical model in the model book, or the same brand string with heavy title overlap (shared tokens / the smaller token set ≥ 0.6).
 A different model number (also a one-letter code: S23/S24, chip M2/M3), storage, RAM ("8/256" vs "12/256") or line word (Pro, Max, Mini, Plus or "+", Ultra, Lite, and the editions FE and SE) forbids a merge on either path.
-A merge with a 2x price gap marks the survivor, which bars it from roles (step 18).
+A merge with a 2x price gap marks the survivor (`dup_price_gap`); it is barred from roles (step 18) only when its price is also under the pool's price reference (step 17).
 A much pricier copy elsewhere becomes a warning later (step 21 notes).
 Then each candidate gets a reference price: the model's official price, else the brand's cheapest genuine item.
 Module: `services/matching`, `normalize/candidate`
@@ -299,7 +299,7 @@ Module: `capabilities/benchmark`, `capabilities/benchmark_providers`, `services/
 Decides: which active substances and concentration each candidate has.
 First the title: a candidate whose title names a required substance or its equivalent gets that substance and counts as checked (`ingredients_checked`).
 Then, with LLM, one batch request over the pool reads the title and composition text; it may add substances and the concentration. Only a candidate that got an answer is checked: a failed request, or an index the LLM skipped, leaves it unchecked, never "absent".
-Then the substance guard: if a required substance rejects every candidate, the run stops with `NoSubstanceMatch` and the 3 nearest alternatives. A product without the asked substance is never shown as the best pick. Only checked candidates can be rejected, so a failed extraction never stops the run.
+Then the substance guard: if nothing passes the hard filters and at least one candidate failed on a required substance (earlier checks such as the budget name the others), the run stops with `NoSubstanceMatch` and 3 of those substance rejects, best-rated first. A product without the asked substance is never shown as the best pick. Only checked candidates can be rejected, so a failed extraction never stops the run.
 No LLM: only the title check; the rest stay unchecked and the report says so (Output).
 Module: `capabilities/composition`, `llm/ingredients`, `ranking/filters`
 
@@ -357,12 +357,14 @@ Module: `ranking/engine`, `ranking/models`, `ranking/filters`, `ranking/price_ri
 ### 18. Roles
 
 Decides: the best pick and the alternatives (best value, budget, premium).
-Best = highest score that is not barred: suspicious price, big duplicate price gap, brand mimicry, counterfeit verdict (also "у части продавцов").
+Best = highest score that is not barred: suspicious price, big duplicate price gap, brand mimicry, counterfeit verdict (also "у части продавцов"). A listing with price <= 0 is best only when no unbarred priced one is left (#27 ✅).
 All barred → the top score anyway.
-Best value counts only candidates close to the best score, so cheap junk cannot win on price.
-Budget pick must be cheaper than best and score at least half of it.
-Premium comes from tier A/B in the top quarter only.
-Alternatives prefer listings with an identified brand; best does not.
+Roles are taken in order best value → budget → premium; one product takes one role, and a flavor or color variant of a taken product (`variant_key`) takes none. Barred listings get no role.
+Best value = highest score/price among priced candidates scoring at least 0.8 of the best, so cheap junk cannot win on price. Price <= 0 gets neither best value nor budget.
+Budget = the cheapest priced candidate that scores at least half of the best and is cheaper than the best.
+Premium = the most expensive tier A/B candidate in the top quarter of the whole pool (max(1, ⌈n/4⌉) by score, barred and best included); no one there → the most expensive tier A/B left anywhere in the ranking, so it may be the lowest-scored (#28, question). The fallback is chosen before best value and budget take their cards.
+Alternatives prefer listings with a named brand: when any unbarred card other than the best names one, unnamed cards take no role, even when no named card fits that role (#32). The best pick ignores the brand.
+Scores compare in hundredths, so the 0.8 and 0.5 cuts are exact and an equal score/price ratio goes to the higher-ranked card (#29 ✅).
 Module: `ranking/selection`
 
 ### 19. Review pass
@@ -381,7 +383,7 @@ Module: `services/review_pass`, `services/recommend`, `ranking/selection`, `capa
 Decides: what the next run knows.
 Each Kaspi/Ozon product, its offers and one price snapshot are saved; the search phrase is added to the tracked list for `refresh`.
 Always runs: no entry point passes `persist=False`; CLI `--no-save` skips only the markdown report.
-Runs right after collecting (step 11), before ranking: `NoSubstanceMatch` or "no candidates" still saves.
+Runs after steps 8-14 and the OLX size check (step 21), before ranking: `NoSubstanceMatch` or "no candidates" still saves. The rows are every Kaspi/Ozon card collected, the ones the relevance filter dropped included; official-store items are not saved.
 The snapshot price is the candidate price: the cheapest offer, else the card price (`normalize/candidate.pick_price`).
 A store failure is logged and ignored.
 Module: `services/collect`, `db/repo`
@@ -389,7 +391,7 @@ Module: `services/collect`, `db/repo`
 ### 21. Notes and used market
 
 Decides: the final warnings and the OLX section. A used query (`condition` "used") shows the section before the best pick, in every surface (`cli/report.used_first`); otherwise it comes last.
-- Cross-source notes from step 13 are attached ("также на ozon за …"); a big gap becomes a con.
+- Cross-source notes from step 13 reach only the best pick and the alternatives, and only at a gap of 1.8x or more, as a con ("⚠ та же модель на ozon за … — разрыв цен 2.1×"); a smaller gap shows nothing.
 - First, with LLM and knowledge, OLX titles the model book missed are mapped to model names: Jev's confident picks only (unsure → no name), the LLM only when Jev fails; a name whose model number, line or storage contradicts the title is dropped. Learned aliases are saved to the profile that owns the model book (its own, the parent or the related profile); only the model book is written, and a borrowed book never creates a record under the query.
 - OLX ads are matched to every ranked candidate (same model or brand + title); an ad shows only if its price is under 0.7 of the matched new product's.
 - Then notable ads of trusted brands, only when a budget is set. No new pick, no brand book and nothing else shown: the three cheapest ads within budget (`cheapest_used_listings`).
@@ -414,7 +416,7 @@ Builds category knowledge: brand book, model book, category type, ingredient boo
 - Official store prices are checked on real pages and kept as brand price floors.
 - Merged into the local store under the category name (other keys of the record stay); step 6 finds it next time.
 - `learn --file` merges with the category's own record only, never a parent's or a related one. The notes only add: a brand the record has keeps its tier, price floor, official sellers and store (notes seldom rate a brand, the extractor would guess); only a brand the notes judge themselves ("X is solid", `rated_brands` in the answer) takes the notes' tier; brands and aliases match whatever the case, under the first spelling, and model entries take the book's spelling; a model matches whatever the case and brand prefix ("CDWC421BE-i" is "Comfee CDWC421BE-i"), the fuller name stays and the aliases and codes join. The extraction prompt says a shop or marketplace that sells the goods is no official seller or store.
-- Automatic runs go through `services/auto_learn.auto_learn` (mark started, `learn_category`, mark done; a failure is marked, logged, returned as `False`). `should_auto_learn` decides: no profile with books, intent `product`/`need`, parsed with the LLM, the `claude` CLI present, a product type of at most 60 letters/digits/spaces/hyphens, no `learning_started_at` mark younger than 15 minutes, no `learn_failed_at` younger than 24 hours, and fewer than `auto_learn_per_hour` (default 10; `BUYSMARTER_AUTO_LEARN_PER_HOUR=0` turns it off) starts in the last hour in this process. The search never waits for it.
+- Automatic runs go through `services/auto_learn.auto_learn` (mark started, `learn_category`, mark done; a failure is marked, logged, returned as `False`). `should_auto_learn` decides: no profile with books, intent `product`/`need`, the request uses the LLM (also when its parse fell back to the naive one), the `claude` CLI present, a product type of at most 60 letters/digits/spaces/hyphens, no `learning_started_at` mark younger than 15 minutes, no `learn_failed_at` younger than 24 hours, and fewer than `auto_learn_per_hour` (default 10; `BUYSMARTER_AUTO_LEARN_PER_HOUR=0` turns it off) starts in the last hour in this process. The search never waits for it.
 - Who starts it: MCP after a `parse_with_llm=True` recommend (a background task; the report says to repeat in a few minutes); CLI before the search (`recommend(learn_first=True)` raises `NeedsLearning`) asks on a terminal "Категория «…» новая. Изучить её перед поиском?" (default yes; no searches now while the category learns in the background, then waits for it and asks "Повторить поиск?"; `--learn` learns without asking, off a terminal without it nothing waits), then searches again without the flag (`cli/learning`); API/worker only with `BUYSMARTER_AUTO_LEARN=true` and `use_llm=true`, after the job finishes, as the taskiq task `buysmarter.learn_category` (600 s limit, one Redis `SET NX` slot per category); the desktop app before the search (`gui/screens/search` → `gui/learning.learn_now`).
 - Variant: extract the same knowledge from the user's own notes; notes with more than 10 list items go in chunks of 10, each headed by the notes' intro, merged in code.
 Feeds: step 6, and through it steps 7, 8, 10, 13, 16, 17.

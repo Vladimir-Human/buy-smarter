@@ -1487,3 +1487,31 @@ def test_an_empty_pass_says_why_every_candidate_was_rejected() -> None:
 
     assert caught.value.rejected_reasons == {"price exceeds budget": 2}
     assert isinstance(caught.value, ValueError)  # API, worker and MCP still catch it as before
+
+
+def _pool_card(pid: str, total: float, price: int) -> ScoredCandidate:
+    cand = _candidate(source_product_id=pid, price=price, brand="Acme", brand_tier=None)
+    axis = AxisScore(name="total", score=total, max_score=100.0, explanation="x")
+    return ScoredCandidate(candidate=cand, total_score=total, confidence=1.0, axes=[axis])
+
+
+def test_best_value_takes_a_card_at_exactly_80_percent_of_the_best_score():
+    """#29a: 0.8 * 50.10 is 40.080000000000005 in floats; 40.08 is exactly 80%."""
+    best = _pool_card("0", 50.10, 30_000)
+    exact = _pool_card("1", 40.08, 30_000)
+
+    alternatives = _pick_alternatives(best, [exact], [best, exact])
+
+    assert alternatives["best_value"].candidate.source_product_id == "1"
+
+
+def test_equal_score_per_price_goes_to_the_higher_score():
+    """#29b: 70.10/10000 equals 63.09/9000; the tie goes to the higher-ranked card."""
+    best = _pool_card("0", 75.00, 1_000_000)
+    high = _pool_card("1", 70.10, 10_000)
+    low = _pool_card("2", 63.09, 9_000)
+
+    alternatives = _pick_alternatives(best, [high, low], [best, high, low])
+
+    assert alternatives["best_value"].candidate.source_product_id == "1"
+    assert alternatives["best_budget"].candidate.source_product_id == "2"

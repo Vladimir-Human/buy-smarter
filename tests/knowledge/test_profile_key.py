@@ -200,3 +200,14 @@ async def test_a_composition_record_is_never_moved_even_as_an_audience_variant()
     assert await _slugs() == {"детский-крем"}
     assert resolved.ingredient_book is not None
     assert resolved.brand_book_owner == "детский-крем"
+
+
+async def test_a_bookless_phrase_record_does_not_shadow_the_product_type_profile() -> None:
+    """#31: a record with only learning marks under the phrase kept the profile's books out."""
+    await _put_raw("крем", {"brand_book": {"tiers": {"Nivea": "B"}}})
+    await _put_raw("крем-с-адапаленом", {"learn_failed_at": "2026-11-01T00:00:00"})
+
+    resolved = await resolve_profile("крем", search_phrase="крем с адапаленом", use_llm=False)
+
+    assert resolved.brand_book is not None and resolved.brand_book.tiers == {"Nivea": "B"}
+    assert resolved.brand_book_owner == "крем"

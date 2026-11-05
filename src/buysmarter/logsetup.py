@@ -12,6 +12,8 @@ import contextvars
 import logging
 import os
 import re
+import sys
+import threading
 import uuid
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -48,14 +50,27 @@ class _RunIdFilter(logging.Filter):
 _KEY_SHAPED = re.compile(r"\b(sk-|AIza)[A-Za-z0-9_\-]{8,}")
 
 
+_MIN_SECRET_LEN = 8  # shorter values would match ordinary text
+_NEWLINE_MARK = " ⏎ "  # one record = one line (file tracebacks stay multi-line)
+_secrets: set[str] = set()
+
+
+def register_log_secrets(*values: str | None) -> None:
+    """Mask these exact values (API keys from env/keyring) in every record from now on."""
+    _secrets.update(v for v in values if v and len(v) >= _MIN_SECRET_LEN)
+
+
 def _redact(text: str) -> str:
+    for secret in _secrets:
+        text = text.replace(secret, "***")
     return _KEY_SHAPED.sub(lambda m: f"{m.group(1)}***", text)
 
 
 class _RedactKeysFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            record.msg, record.args = _redact(record.getMessage()), None
+            msg = _redact(record.getMessage())
+            record.msg, record.args = msg.replace("\n", _NEWLINE_MARK), None
         except Exception:  # noqa: BLE001 - a bad format call stays the handler's to report
             return True
         if record.exc_info and not record.exc_text:
@@ -102,6 +117,24 @@ def _ours(
     return handler
 
 
+def _install_excepthooks() -> None:
+    """Uncaught errors in main / worker threads go through the logger (and its redaction)."""
+    log = logging.getLogger("buysmarter")
+
+    def _main_hook(et, ev, tb):  # type: ignore[no-untyped-def]
+        if issubclass(et, KeyboardInterrupt):
+            sys.__excepthook__(et, ev, tb)
+            return
+        log.critical("uncaught exception", exc_info=(et, ev, tb))
+
+    sys.excepthook = _main_hook
+    threading.excepthook = lambda a: log.error(
+        "uncaught exception in thread %s",
+        a.thread.name if a.thread else "?",
+        exc_info=(a.exc_type, a.exc_value, a.exc_traceback),
+    )
+
+
 def setup_logging(log_path: Path | str | None = None) -> None:
     """Attach a rotating file handler (INFO) + console handler (WARNING) to root.
 
@@ -136,3 +169,4 @@ def setup_logging(log_path: Path | str | None = None) -> None:
         logging.getLogger(name).setLevel(logging.WARNING)
     for handler in handlers:
         root.addHandler(handler)
+    _install_excepthooks()

@@ -31,6 +31,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 from pydantic import BaseModel, ValidationError
 
 from buysmarter import telemetry
+from buysmarter.logsetup import register_log_secrets
 from buysmarter.config import Settings, get_settings
 from buysmarter.llm import keys
 from buysmarter.llm.cache import cache_key_for, get_cached, hash_text, store_cached
@@ -174,6 +175,8 @@ def _resolve_provider(model: str, settings: Settings, cli_tools: str = "") -> tu
     ``cli_tools`` (web search) exist only on the CLI, so such a call prefers the CLI when installed.
     """
     route = current_route(settings)
+    if route is not None:
+        register_log_secrets(route.api_key)
     if route is None:
         raise LlmConfigError(
             "No LLM configured: set an API key (buysmarter llm set-key, or an env var "

@@ -190,3 +190,46 @@ def test_console_gets_one_line_while_the_file_keeps_the_traceback(tmp_path, caps
     err = capsys.readouterr().err
     assert err == "WARNING: source failed\n"
     assert "Traceback" in log_path.read_text(encoding="utf-8")
+
+
+def test_registered_secret_and_newlines_are_masked_in_one_line(tmp_path) -> None:
+    from buysmarter.logsetup import _secrets, register_log_secrets
+
+    log_path = tmp_path / "buysmarter.log"
+    setup_logging(log_path)
+    register_log_secrets("plainkey-0123456789")
+    try:
+        logging.getLogger("buysmarter.test").warning("got %s\nsecond", "plainkey-0123456789")
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+    finally:
+        _secrets.discard("plainkey-0123456789")
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1 and "plainkey" not in lines[0] and "got *** ⏎ second" in lines[0]
+
+
+def test_thread_and_main_excepthooks_go_through_the_logger(tmp_path) -> None:
+    import sys
+    import threading
+
+    log_path = tmp_path / "buysmarter.log"
+    saved = sys.excepthook, threading.excepthook
+    try:
+        setup_logging(log_path)
+
+        def boom() -> None:
+            raise RuntimeError("thread boom")
+
+        t = threading.Thread(target=boom, name="worker-x")
+        t.start()
+        t.join()
+        try:
+            raise ValueError("main boom")
+        except ValueError:
+            sys.excepthook(*sys.exc_info())
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+    finally:
+        sys.excepthook, threading.excepthook = saved
+    text = log_path.read_text(encoding="utf-8")
+    assert "thread worker-x" in text and "thread boom" in text and "main boom" in text

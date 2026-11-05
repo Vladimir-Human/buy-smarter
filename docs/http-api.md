@@ -31,6 +31,6 @@ curl -s 'localhost:8000/history?q=wp-100'
 - `BUYSMARTER_API_KEYS=k1,k2` requires `X-API-Key`. `BUYSMARTER_SOURCES` lists the marketplaces the API accepts:
   `kaspi,olx` by default, `ozon` needs the worker's Chromium image.
 - A worker that dies mid-run loses nothing: its job is picked up by another worker after twice the job timeout
-  (`BUYSMARTER_JOB_TIMEOUT_S`, 300 s by default).
+  (`BUYSMARTER_JOB_TIMEOUT_S`, 600 s by default).
 - From cloud IPs the marketplaces often refuse requests (Kaspi answers 429 to datacenter addresses; see `KASPI_PROXY`),
   so most jobs there end as `no_match` or `failed`.

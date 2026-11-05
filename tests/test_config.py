@@ -29,3 +29,9 @@ def test_suite_never_points_at_the_real_data_dir():
     from buysmarter.config import get_settings
 
     assert "buysmarter-tests-" in get_settings().database_url
+
+
+def test_job_timeout_default_covers_the_longest_observed_run(monkeypatch):
+    monkeypatch.delenv("BUYSMARTER_JOB_TIMEOUT_S", raising=False)
+
+    assert Settings(_env_file=None).job_timeout_s >= 600

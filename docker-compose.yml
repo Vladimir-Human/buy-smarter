@@ -4,7 +4,7 @@ x-env: &env
   DATABASE_URL: postgresql+asyncpg://buysmarter:buysmarter@postgres:5432/buysmarter
   REDIS_URL: redis://redis:6379/0
   BUYSMARTER_SOURCES: ${BUYSMARTER_SOURCES:-kaspi,olx}
-  BUYSMARTER_JOB_TIMEOUT_S: ${BUYSMARTER_JOB_TIMEOUT_S:-300}
+  BUYSMARTER_JOB_TIMEOUT_S: ${BUYSMARTER_JOB_TIMEOUT_S:-600}
   # Traces go out only when this is set (`make observe` points it at Jaeger).
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
